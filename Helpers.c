@@ -15,6 +15,8 @@
 #include <string.h>
 // typedef short bool;
 #include <stdbool.h>
+// ------------------------------------some global vars------------------------------------------------//
+FILE* OutputFile = fopen("scheduler.txt", "w");
 /////////////////////////////////////////////////   Start structs ////////////////////////////////////
 // struct of the process
 struct Process
@@ -131,9 +133,10 @@ two Functions :
 Process RecMsg(int MsgId)
 {
 	Message ResMessage;
-	int Flag=msgrcv(MsgId, &ResMessage, sizeof(ResMessage.CurrentProcess), 0, !IPC_NOWAIT);
+	int Flag=msgrcv(MsgId, &ResMessage, sizeof(ResMessage.CurrentProcess), 0, IPC_NOWAIT);
 	if(Flag==-1)
 		printf("\nerror in reciving\n");
+		return NULL;
 	return ResMessage.CurrentProcess;
 
 }
@@ -205,5 +208,49 @@ void destroyClk(bool terminateAll)
     {
         killpg(getpgrp(), SIGINT);
     }
+}
+
+
+
+//---------------------------------------some functions needed by the HPF--------------------------------//
+void StartProcess(Process* CurrentProcess)
+{
+	*CurrentProcess.id=fork();
+	if(*CurrentProcess.id==0)
+	{
+		RunAndComplie("process",NULL,NULL);
+	}
+	fprintf(OutputFile, "At time %d process %d started arr %d total %d remain %d wait %d\n",
+            getClk(), *CurrentProcess.id, *CurrentProcess.arrivalTime, *CurrentProcess.runTime,
+            *CurrentProcess.runTime, getClk() - *CurrentProcess.arrivalTime);
+}
+// must take queue as parameter
+void ReadyProcessExist(int MsgId)
+{
+	Process* RecProcess;
+	while(1)
+	{
+		RecProcess=NULL;
+		*RecProcess=RecMsg(MsgId);
+		if(RecProcess!=NULL)
+		{
+			// push it in the queue 
+		}
+		else 
+		{
+			break;
+		}
+	}
+}
+
+
+void FinishProcess(Process FinishedProcess)
+{
+	int FinishTime=getClk();
+	double WTA = (getClk() - FinishedProcess.arrivalTime) * 1.0 / FinishedProcess.runTime;
+    int wait = (getClk() - FinishedProcess.arrivalTime) - FinishedProcess.runTime;
+    fprintf(OutputFile, "At time %d process %d finished arr %d total %d remain 0 wait %d TA %d WTA %.2f\n", getClk(),
+            FinishedProcess.id, FinishedProcess.arrivalTime, FinishedProcess.runTime,
+            wait, getClk() - FinishedProcess.arrivalTime, WTA); 
 }
 
