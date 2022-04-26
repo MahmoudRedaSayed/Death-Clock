@@ -13,6 +13,15 @@
 #include <string.h>
 #include <assert.h>
 
+// mustafa put process Struct here
+typedef struct Process Process;
+struct Message
+{
+	int Mtype;
+	Process CurrentProcess;
+}
+typedef struct Message Message;
+
 /*
 Function explaintion:-
 	This function is used to complie the file and run it and it will be used to create the processes also
@@ -90,6 +99,43 @@ void * InitShm(char Idenitfier, int * IdShm)
 
     void * ShmAddr  = shmat(ShmId, (void *)0, 0);
     return ShmAddr;
+}
+
+
+//------------------------------------------------------------------------------------------------------------------------//
+/*
+
+two Functions :
+	these two functions used in send and receive to and from the message queue
+	Commen Parameters:
+		MsgId: the id of the queue to control it
+	Send: 
+		ArrivedProcess: it the process will be arrive at this moment
+	Rec:
+		return Process that sent be the process generator
+
+
+*/
+
+
+Process RecMsg(int MsgId)
+{
+	Message ResMessage;
+	int Flag=msgrcv(MsgId, &ResMessage, sizeof(ResMessage.CurrentProcess), 0, !IPC_NOWAIT);
+	if(Flag==-1)
+		printf("\nerror in reciving\n");
+	return ResMessage.CurrentProcess;
+
+}
+
+
+void SendMsg(int MsgId,Process ArrivedProcess)
+{
+	Message SendMessage;
+	SendMessage.CurrentProcess=ArrivedProcess;
+	int Flag=msgsnd(MsgId, &SendMessage, sizeof(SendMessage.CurrentProcess), !IPC_NOWAIT);
+	if(Flag==-1)
+		printf("\nerror in Sending\n");
 }
 
 
