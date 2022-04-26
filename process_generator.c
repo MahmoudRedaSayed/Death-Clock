@@ -89,7 +89,7 @@ int main(int argc, char * argv[])
     clkArgs[1] = NULL;
     int clkID = fork();
     if (clkID == 0)
-        RunAndComplie("clk", NULL, NULL);
+        RunAndComplie("clk", NULL, NULL, NULL);
     else if (clkID == -1)
     {
         perror("Failed to fork the clock process");
@@ -102,7 +102,7 @@ int main(int argc, char * argv[])
 
     int schedulerID = fork();
     if (schedulerID == 0)
-        RunAndComplie("scheduler", args[0], args[1]);
+        RunAndComplie("scheduler", args[0], args[1], (char*)countProcesses);
     else if (schedulerID == -1)
     {
         perror("Failed to fork the scheduler process");

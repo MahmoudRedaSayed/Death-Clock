@@ -45,7 +45,7 @@ Function explaintion:-
 */
 
 
-void RunAndComplie(char* FileName,char* arg_0, char* arg_1)
+void RunAndComplie(char* FileName,char* arg_0, char* arg_1, char* arg_3)
 {
 	char * Complie;
 	Complie=(char*)malloc((20+2*sizeof(FileName)*sizeof(char)));
@@ -254,3 +254,7 @@ void FinishProcess(Process FinishedProcess)
             wait, getClk() - FinishedProcess.arrivalTime, WTA); 
 }
 
+
+void StopProcess(Process p);
+void ContinueProcess(Process p);
+int comparePriorities(int,int);
