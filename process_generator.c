@@ -19,11 +19,15 @@ int main(int argc, char * argv[])
     int lineSize = 0,
         countProcesses = 0;
     
+    if (!inputFile)
+        perror("Can't open the input file");
+    
+
     // get the number of processes
-    while (getline(&line, lineSize, inputFile) != -1)
+    while (getline(&line, &lineSize, inputFile) != -1)
         // check if the line is commented or not
         if (line[0] != '#') countProcesses++;
-    
+
     // close the input file
     fclose(inputFile);
 
@@ -32,31 +36,37 @@ int main(int argc, char * argv[])
     // store the input data
     fopen("processes.txt", "r");
     int i = 0;
-    while (getline(line, lineSize, inputFile) != -1)
+    while (getline(&line, &lineSize, inputFile) != -1)
     {
-        if (line[0] != '#')
-        {
-            scanf("%d", allProcesses[i].id);
-            scanf("%d", allProcesses[i].arriavalTime);
-            scanf("%d", allProcesses[i].runTime);
-            scanf("%d", allProcesses[i].priority);
+        fscanf(inputFile,"%d", &allProcesses[i].id);
+        fscanf(inputFile,"%d", &allProcesses[i].arriavalTime);
+        fscanf(inputFile,"%d", &allProcesses[i].runTime);
+        fscanf(inputFile,"%d", &allProcesses[i].priority);
 
-            allProcesses[i].running = 0;
-            allProcesses[i].waitingTime = 0;
-            allProcesses[i].remainingTime = allProcesses[i].runTime;
-            allProcesses[i].lastProcess = false;
+        allProcesses[i].running = 0;
+        allProcesses[i].waitingTime = 0;
+        allProcesses[i].remainingTime = allProcesses[i].runTime;
+        allProcesses[i].lastProcess = false;
 
-            if (i == countProcesses - 1)
-                allProcesses[i].lastProcess = true;
-            
-            i++;
-        }
+        if (i == countProcesses - 1)
+            allProcesses[i].lastProcess = true;
+        
+        i++;
+
         
     }
     fclose(inputFile);
 
+    // test input
+    // for (int i = 0; i < countProcesses; i++)
+    // {
+    //     printf("Process %i:\n", i );
+    //     printf("id :%i, arriavalTime: %i, runTime: %i, priority : %i\n", allProcesses[i].id, allProcesses[i].arriavalTime, allProcesses[i].runTime, allProcesses[i].priority);
+    // }
+    
+    
     // 2. Ask the user for the chosen scheduling algorithm and its parameters, if there are any.
-    char args[2][2];
+    char args[3][2];
     printf("Choose the algorithm :\n");
     printf("1-HPF\n2-SRTN\n3-RR\n");
     scanf("%s", args[0]);
@@ -95,14 +105,14 @@ int main(int argc, char * argv[])
         perror("Failed to fork the clock process");
         exit(-1);
     }
-    
-
-    printf("%s\n", args[0]);
-    printf("%s\n", args[1]);
+    // run the scheduler process
+    char numOfProcesses[2];
+    sprintf(numOfProcesses, "%d", countProcesses);      // convert int to string
+    //printf("%s\n", numOfProcesses);exit(-1);
 
     int schedulerID = fork();
     if (schedulerID == 0)
-        RunAndComplie("scheduler", args[0], args[1], (char*)countProcesses);
+        RunAndComplie("scheduler", args[0], args[1], numOfProcesses);
     else if (schedulerID == -1)
     {
         perror("Failed to fork the scheduler process");

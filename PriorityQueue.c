@@ -72,3 +72,20 @@ int isEmpty(Node** head)
     return (*head) == NULL;
 }
  
+// Driver code
+// int main()
+// {
+//     // Create a Priority Queue
+//     // 7->4->5->6
+//     Node* pq = newNode(4, 1);
+//     push(&pq, 5, 2);
+//     push(&pq, 6, 3);
+//     push(&pq, 7, 0);
+ 
+//     while (!isEmpty(&pq)) {
+//         printf("%d ", peek(&pq));
+//         pop(&pq);
+//     }
+ 
+//     return 0;
+// }

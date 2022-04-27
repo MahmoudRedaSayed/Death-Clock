@@ -49,4 +49,3 @@ void Enqueue(Node*Q,Process element)
         temp->Next=(Node*)malloc(sizeof(Node));
         temp->Next->data=element;
 }
-

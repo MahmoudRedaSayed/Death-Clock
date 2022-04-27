@@ -16,7 +16,7 @@
 // typedef short bool;
 #include <stdbool.h>
 // ------------------------------------some global vars------------------------------------------------//
-FILE* OutputFile = fopen("scheduler.txt", "w");
+FILE* OutputFile;
 /////////////////////////////////////////////////   Start structs ////////////////////////////////////
 // struct of the process
 struct Process
@@ -62,7 +62,7 @@ void RunAndComplie(char* FileName,char* arg_0, char* arg_1, char* arg_3)
 	//printf("\n%s\n", FileName);
 	printf("\n");
     strcat(FileNameOut,".out");
-    execl(FileNameOut,FileName, arg_0, arg_1, NULL);
+    execl(FileNameOut,FileName, arg_0, arg_1, arg_3, NULL);
 }
 
 
@@ -135,8 +135,11 @@ Process RecMsg(int MsgId)
 	Message ResMessage;
 	int Flag=msgrcv(MsgId, &ResMessage, sizeof(ResMessage.CurrentProcess), 0, IPC_NOWAIT);
 	if(Flag==-1)
+	{
 		printf("\nerror in reciving\n");
-		return NULL;
+		Process p;
+		return p;		// Mustafa : i changed it from null ( it was getting an error )
+	}		
 	return ResMessage.CurrentProcess;
 
 }
@@ -215,18 +218,21 @@ void destroyClk(bool terminateAll)
 //---------------------------------------some functions needed by the HPF--------------------------------//
 void StartProcess(Process* CurrentProcess)
 {
-	*CurrentProcess.id=fork();
-	if(*CurrentProcess.id==0)
+	OutputFile = fopen("scheduler.txt", "w");
+	CurrentProcess->id=fork();
+
+	if(CurrentProcess->id==0)
 	{
-		RunAndComplie("process",NULL,NULL);
+		RunAndComplie("process",NULL,NULL, NULL);
 	}
 	fprintf(OutputFile, "At time %d process %d started arr %d total %d remain %d wait %d\n",
-            getClk(), *CurrentProcess.id, *CurrentProcess.arrivalTime, *CurrentProcess.runTime,
-            *CurrentProcess.runTime, getClk() - *CurrentProcess.arrivalTime);
+            getClk(), CurrentProcess->id, CurrentProcess->arriavalTime, CurrentProcess->runTime,
+            CurrentProcess->runTime, getClk() - CurrentProcess->arriavalTime);
 }
 // must take queue as parameter
-void ReadyProcessExist(int MsgId)
+void ReadyProcessExist(int MsgId, Node*q)
 {
+	
 	Process* RecProcess;
 	while(1)
 	{
@@ -234,7 +240,7 @@ void ReadyProcessExist(int MsgId)
 		*RecProcess=RecMsg(MsgId);
 		if(RecProcess!=NULL)
 		{
-			// push it in the queue 
+			push(&q, *RecProcess);
 		}
 		else 
 		{
@@ -243,18 +249,38 @@ void ReadyProcessExist(int MsgId)
 	}
 }
 
-
 void FinishProcess(Process FinishedProcess)
 {
+	OutputFile = fopen("scheduler.txt", "w");
+
 	int FinishTime=getClk();
-	double WTA = (getClk() - FinishedProcess.arrivalTime) * 1.0 / FinishedProcess.runTime;
-    int wait = (getClk() - FinishedProcess.arrivalTime) - FinishedProcess.runTime;
+	double WTA = (getClk() - FinishedProcess.arriavalTime) * 1.0 / FinishedProcess.runTime;
+    int wait = (getClk() - FinishedProcess.arriavalTime) - FinishedProcess.runTime;
     fprintf(OutputFile, "At time %d process %d finished arr %d total %d remain 0 wait %d TA %d WTA %.2f\n", getClk(),
-            FinishedProcess.id, FinishedProcess.arrivalTime, FinishedProcess.runTime,
-            wait, getClk() - FinishedProcess.arrivalTime, WTA); 
+            FinishedProcess.id, FinishedProcess.arriavalTime, FinishedProcess.runTime,
+            wait, getClk() - FinishedProcess.arriavalTime, WTA); 
 }
 
+// stop the running process
+void StopProcess(Process p)
+{
+	kill(p.id, SIGSTOP);
 
-void StopProcess(Process p);
-void ContinueProcess(Process p);
-int comparePriorities(int,int);
+	fprintf(OutputFile, "At time %d process %d stopped arr %d total %d remain %d\n", getClk(),
+            p.id, p.arriavalTime, p.runTime,p.remainingTime); 
+}
+
+// resume the passed process
+void ContinueProcess(Process p)
+{
+	kill(p.id, SIGCONT);
+	fprintf(OutputFile, "At time %d process %d resumed arr %d total %d remain %d\n", getClk(),
+            p.id, p.arriavalTime, p.runTime,p.remainingTime); 
+}
+// simple comparing two INTs
+int comparePriorities(int first,int second)
+{
+	if (first > second) return 1;
+	else return 0;
+	
+}
