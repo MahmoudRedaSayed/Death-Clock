@@ -15,6 +15,7 @@
 #include <string.h>
 // typedef short bool;
 #include <stdbool.h>
+#include"PriorityQueue.c"
 // ------------------------------------some global vars------------------------------------------------//
 FILE* OutputFile;
 /////////////////////////////////////////////////   Start structs ////////////////////////////////////
@@ -28,10 +29,95 @@ typedef struct Process Process;
 
 struct Message
 {
-	int Mtype;
+	long mtype;
 	Process CurrentProcess;
 };
 typedef struct Message Message;
+
+
+///////////////////////////// P Queu/////////////////////////////////////////////////
+
+struct Node
+{
+    Process data;
+    struct Node* next;
+} ;
+typedef struct Node Node;
+
+
+// Function to Create A New Node
+Node* newNode(Process d)
+{
+    Node* temp = (Node*)malloc(sizeof(Node));
+    temp->data = d;
+    temp->next = NULL;
+    return temp;
+}
+ 
+// Return the value at head
+Process peek(Node* head)
+{
+    return head->data;
+}
+ 
+// Removes the element with the
+// highest priority form the list
+void pop(Node** head)
+{
+    Node* temp = *head;
+    (*head) = (*head)->next;
+    free(temp);
+}
+ 
+// Function to push according to priority
+void push(Node** head, Process d)
+{
+    Node* start =*head;
+
+    // Create new Node
+    Node* temp = (Node*)malloc(sizeof(Node));
+    temp->data = d;
+ 
+    // Special Case: The head of list has lesser
+    // priority than new node. So insert new
+    // node before head node and change head node.
+
+	temp->next = *head;
+        *head = temp;
+	printf("From pppush func %d\n",*head->data.id);
+
+    // if (head->data.priority > temp->data.priority) {
+ 		
+    //     // Insert New Node before head
+    //     temp->next = head;
+    //     head = temp;
+    // }
+    // else {
+ 
+    //     // Traverse the list and find a
+    //     // position to insert new node
+    //     while (start->next != NULL &&
+    //         start->next->data.priority < temp->data.priority) {
+    //         start = start->next;
+    //     }
+ 
+    //     // Either at the ends of the list
+    //     // or at required position
+    //     temp->next = start->next;
+    //     start->next = temp;
+    // }
+}
+ 
+// Function to check is list is empty
+int isEmpty(Node** head)
+{
+    return (*head) == NULL;
+}
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+
 ///////////////////////////////////////////////  End structs //////////////////////////////////////////
 
 
@@ -133,25 +219,27 @@ two Functions :
 Process RecMsg(int MsgId)
 {
 	Message ResMessage;
-	int Flag=msgrcv(MsgId, &ResMessage, sizeof(ResMessage.CurrentProcess), 0, IPC_NOWAIT);
+	int Flag=msgrcv(MsgId, &ResMessage, sizeof(ResMessage.CurrentProcess), 0, !IPC_NOWAIT );
+
 	if(Flag==-1)
 	{
 		printf("\nerror in reciving\n");
 		Process p;
-		return p;		// Mustafa : i changed it from null ( it was getting an error )
-	}		
+		p.arriavalTime = -1;		// just an indicator
+		return p;
+	}	
 	return ResMessage.CurrentProcess;
-
 }
-
 
 void SendMsg(int MsgId,Process ArrivedProcess)
 {
+
 	Message SendMessage;
 	SendMessage.CurrentProcess=ArrivedProcess;
-	int Flag=msgsnd(MsgId, &SendMessage, sizeof(SendMessage.CurrentProcess), !IPC_NOWAIT);
+	int Flag = msgsnd(MsgId, &SendMessage, sizeof(SendMessage.CurrentProcess), !IPC_NOWAIT );
 	if(Flag==-1)
 		printf("\nerror in Sending\n");
+	//else printf("sent\n");
 }
 
 //------------------------------------------------------------------------------------------------------------------------//
@@ -229,18 +317,27 @@ void StartProcess(Process* CurrentProcess)
             getClk(), CurrentProcess->id, CurrentProcess->arriavalTime, CurrentProcess->runTime,
             CurrentProcess->runTime, getClk() - CurrentProcess->arriavalTime);
 }
-// must take queue as parameter
+// must take queue as paramet
 void ReadyProcessExist(int MsgId, Node*q)
 {
 	
-	Process* RecProcess;
+	Process RecProcess;
 	while(1)
 	{
-		RecProcess=NULL;
-		*RecProcess=RecMsg(MsgId);
-		if(RecProcess!=NULL)
+		RecProcess = RecMsg(MsgId);
+
+		if(RecProcess.arriavalTime != -1)
 		{
-			push(&q, *RecProcess);
+			printf("before push %d\n", RecProcess.arriavalTime);
+			push(&q, RecProcess);
+/////			sleep(1);
+			printf("afer push %d\n", peek(q).id);
+if(RecProcess.id==9)
+{
+
+exit(1);
+}
+
 		}
 		else 
 		{
@@ -249,16 +346,16 @@ void ReadyProcessExist(int MsgId, Node*q)
 	}
 }
 
-void FinishProcess(Process FinishedProcess)
+void FinishProcess(Process *FinishedProcess)
 {
 	OutputFile = fopen("scheduler.txt", "w");
 
 	int FinishTime=getClk();
-	double WTA = (getClk() - FinishedProcess.arriavalTime) * 1.0 / FinishedProcess.runTime;
-    int wait = (getClk() - FinishedProcess.arriavalTime) - FinishedProcess.runTime;
+	double WTA = (getClk() - FinishedProcess->arriavalTime) * 1.0 / FinishedProcess->runTime;
+    int wait = (getClk() - FinishedProcess->arriavalTime) - FinishedProcess->runTime;
     fprintf(OutputFile, "At time %d process %d finished arr %d total %d remain 0 wait %d TA %d WTA %.2f\n", getClk(),
-            FinishedProcess.id, FinishedProcess.arriavalTime, FinishedProcess.runTime,
-            wait, getClk() - FinishedProcess.arriavalTime, WTA); 
+            FinishedProcess->id, FinishedProcess->arriavalTime, FinishedProcess->runTime,
+            wait, getClk() - FinishedProcess->arriavalTime, WTA); 
 }
 
 // stop the running process

@@ -92,7 +92,7 @@ int main(int argc, char * argv[])
     // 3. Initiate and create the scheduler and clock processes.
     msgQueueId     = InitMsgQueue('q');
     int *shmAddr   = InitShm('m', &sharedMemoryId);
-
+    printf("ID in gen:%d\n", msgQueueId);
     // run the clock process
     char* clkArgs[2];
     clkArgs[0] = NULL;
@@ -128,19 +128,26 @@ int main(int argc, char * argv[])
 
     int time;
     bool done = false;
+    int sendCounter = 0;
     while (! done)
     {
-         time = getClk();
+        time = getClk();
+         
         for (int i = 0; i < countProcesses; i++)
         {
             if (allProcesses[i].arriavalTime == time)
+            {
+                printf("id:%d\n", allProcesses[i].id);
                 SendMsg(msgQueueId, allProcesses[i]);
-
-            if (allProcesses[i].lastProcess)
+                //printf("Sent process #:%d\n", i+1);
+                sendCounter++;
+                allProcesses[i].arriavalTime = -1;
+            }
+                
+            if (allProcesses[i].lastProcess && sendCounter == countProcesses)
                 done = true;
         } 
     }
-
     // 7. Clear clock resources
     msgctl(msgQueueId, IPC_RMID, (struct msqid_ds *)0);
     shmctl(sharedMemoryId, IPC_RMID, NULL);

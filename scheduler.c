@@ -47,10 +47,10 @@ int main(int argc, char * argv[])
         HPF();
         break;
     case 2:
-        SRTN();
+     //   SRTN();
         break;
     case 3:
-        RoundRobin(quantum);
+     //   RoundRobin(quantum);
         break;
     }
     
@@ -70,34 +70,39 @@ void clearResources(int signum)
 // 2- 
 void HPF()
 {
+    printf("Start HPF Algo\n");
+  
     Process CurrentProcess;
     CurrentProcess.lastProcess=false;
-    CurrentProcess.priority=0;
+    CurrentProcess.priority=11;
     *shmAddr=-1;
-    Node* q = newNode(CurrentProcess);
+    
+    Node* q = (Node*)malloc(sizeof(Node));
+    q->data = CurrentProcess;
 
+    
     while(!(*shmAddr==-1&&isEmpty(&q)&&CurrentProcess.lastProcess))
     {
         // function to check if there is new process or not
         ReadyProcessExist(msgQueueId, q);
-        if(*shmAddr==0)
-        {
-            FinishProcess(CurrentProcess);
-            countProcesses--;
-            if(countProcesses == 0)
-            {
-                break;
-            }
-        }
-            // function to finish the process
-        if(!isEmpty(&q)&&*shmAddr==0)
-        {
-            // pop a new process to run it 
-            CurrentProcess = peek(q);
-            pop(q);
-            *shmAddr=CurrentProcess.runTime;
-            StartProcess(&CurrentProcess);
-        }
+        // if(*shmAddr==0)
+        // {
+        //     FinishProcess(&CurrentProcess);
+        //     countProcesses--;
+        //     if(countProcesses == 0)
+        //     {
+        //         break;
+        //     }
+        // }
+        //     // function to finish the process
+        // if(!isEmpty(&q)&&*shmAddr==0)
+        // {
+        //     // pop a new process to run it 
+        //     CurrentProcess = peek(&q);
+        //     pop(q);
+        //     *shmAddr=CurrentProcess.runTime;
+        //     StartProcess(&CurrentProcess);
+        // }
     }
 }
 
