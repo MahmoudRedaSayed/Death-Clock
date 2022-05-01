@@ -1,125 +1,210 @@
-#include <stdio.h> //if you don't use scanf/printf change this include
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/file.h>
-#include <sys/ipc.h>
-#include <sys/shm.h>
-#include <sys/sem.h>
-#include <sys/msg.h>
-#include <sys/wait.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <signal.h>
-#include <string.h>
-#include <assert.h>
-#include <string.h>
-// typedef short bool;
-#include <stdbool.h>
-#include"PriorityQueue.c"
-// ------------------------------------some global vars------------------------------------------------//
-FILE* OutputFile;
-/////////////////////////////////////////////////   Start structs ////////////////////////////////////
-// struct of the process
-struct Process
-{
-    int id, parentId, arriavalTime, runTime, waitingTime, remainingTime, priority;
-    bool running, lastProcess;
-};
-typedef struct Process Process;
+#include "headers.h"
 
-struct Message
-{
-	long mtype;
-	Process CurrentProcess;
-};
-typedef struct Message Message;
+/******************************* Global Variables *******************************/
+FILE *OutputFile;
 
-
-///////////////////////////// P Queu/////////////////////////////////////////////////
-
+/******************************* Start Data Structures *******************************/
 struct Node
 {
-    Process data;
-    struct Node* next;
-} ;
+	struct Node *Next;
+	Process data;
+};
 typedef struct Node Node;
 
+/*
+Function explaintion:-
+	This function is used to push a process into the queue
+	Function Parameters:-
+		1- q : the head node of the queue
+		2- p: the process to be pushed
+		3- PriorityFlag : this flag to determine which the priority for,
+						  if flag : 0  ( no priority, acts as a normal queue FCFS)
+						  if flag : 1  ( Priority on the the process priority)
+						  if flag : 2  ( Priority on the the process remaining time)
 
-// Function to Create A New Node
-Node* newNode(Process d)
+*/
+void push(Node **q, Process p, int PriorityFlag) // PriorityFlag:1 ( priority is on) , PriorityFlag:0 ( priority is off), PriorityFlag:2 ( priority is remaining Time)
 {
-    Node* temp = (Node*)malloc(sizeof(Node));
-    temp->data = d;
-    temp->next = NULL;
-    return temp;
+	if (PriorityFlag == 0) // act as a normal queue
+	{
+		if (*q == NULL) // if the queue is empty
+		{
+			*q = (Node *)malloc(sizeof(Node));
+			(*q)->data = p;
+			(*q)->Next = NULL;
+		}
+		else
+		{
+			Node *temp = *q;
+			while (temp->Next != NULL)
+			{
+				temp = temp->Next;
+			}
+			temp->Next = (Node *)malloc(sizeof(Node));
+			temp->Next->Next = NULL;
+			temp->Next->data = p;
+		}
+	}
+	else if (PriorityFlag == 1) // Priority on the the process priority
+	{
+		if (*q == NULL) // if the queue is empty
+		{
+			*q = (Node *)malloc(sizeof(Node));
+			(*q)->data = p;
+			(*q)->Next = NULL;
+		}
+		else
+		{
+			if (p.ArriavalTime == (*q)->data.ArriavalTime)
+			{
+				// check priorities
+				if (p.Priority <= (*q)->data.Priority)
+				{
+					Node *temp = (Node *)malloc(sizeof(Node));
+					temp->data = p;
+					temp->Next = *q;
+					*q = temp;
+				}
+				else
+				{
+					Node *temp = *q;
+					Node *prev = temp;
+					while (temp != NULL && (p.ArriavalTime == temp->data.ArriavalTime && p.Priority < temp->data.Priority))
+					{
+						prev = temp;
+						temp = temp->Next;
+					}
+					Node *inserted = (Node *)malloc(sizeof(Node));
+					prev->Next = inserted;
+					inserted->Next = temp;
+				}
+			}
+			else if (p.ArriavalTime > (*q)->data.ArriavalTime)
+			{
+				Node *temp = *q;
+				Node *prev = temp;
+
+				while (temp != NULL && p.ArriavalTime > temp->data.ArriavalTime)
+				{
+					prev = temp;
+					temp = temp->Next;
+				}
+
+				if (temp == NULL) // then, insert in the last of the queue
+				{
+					Node *inserted = (Node *)malloc(sizeof(Node));
+					inserted->data = p;
+					prev->Next = inserted;
+					inserted->Next = NULL;
+				}
+				else // check if there is a process with the same priority or not
+				{
+					while (temp != NULL && p.Priority > temp->data.Priority)
+					{
+						prev = temp;
+						temp = temp->Next;
+					}
+					// here, we got the right place to insert
+					Node *inserted = (Node *)malloc(sizeof(Node));
+					inserted->data = p;
+					prev->Next = inserted;
+					inserted->Next = temp;
+				}
+			}
+		}
+	}
+
+	else
+	{
+		if (*q == NULL)
+		{
+			*q = (Node *)malloc(sizeof(Node));
+			(*q)->data = p;
+			(*q)->Next = NULL;
+		}
+		else
+		{
+
+			// check remaining time
+			if (p.RemainingTime < (*q)->data.RemainingTime)
+			{
+				Node *temp = (Node *)malloc(sizeof(Node));
+				temp->data = p;
+				temp->Next = *q;
+				*q = temp;
+			}
+			else
+			{
+				Node *temp = *q;
+				Node *prev = temp;
+				while (temp != NULL && p.RemainingTime >= temp->data.RemainingTime)
+				{
+					prev = temp;
+					temp = temp->Next;
+				}
+				Node *inserted = (Node *)malloc(sizeof(Node));
+				inserted->data = p;
+				prev->Next = inserted;
+				inserted->Next = temp;
+			}
+		}
+	}
 }
- 
-// Return the value at head
-Process peek(Node* head)
+//------------------------------------------------------------------------------------------------------------------------//
+/*
+Function explaintion:-
+	This function is used to remove the first process from the queue
+	Function Parameters:-
+		1- q : the head node of the queue
+*/
+Process pop(Node **q)
 {
-    return head->data;
+	if (*q != NULL)
+	{
+		Process obj = (*q)->data;
+		*q = (*q)->Next;
+		return obj;
+	}
+	else // reutrn any dummy process
+	{
+		Process p;
+		p.ArriavalTime = -1; // indicator
+		return p;
+	}
 }
- 
-// Removes the element with the
-// highest priority form the list
-void pop(Node** head)
+//------------------------------------------------------------------------------------------------------------------------//
+/*
+Function explaintion:-
+	This function is used to get the first process from the queue
+	Function Parameters:-
+		1- q : the head node of the queue
+*/
+Process peek(Node *q)
 {
-    Node* temp = *head;
-    (*head) = (*head)->next;
-    free(temp);
+	if (q != NULL)
+	{
+		return q->data;
+	}
+	// return any dummy process
+	Process p;
+	p.ArriavalTime = -1;
+	return p;
 }
- 
-// Function to push according to priority
-void push(Node** head, Process d)
+//------------------------------------------------------------------------------------------------------------------------//
+/*
+Function explaintion:-
+	This function is used to check whether the queue is empty or not
+	Function Parameters:-
+		1- q : the head node of the queue
+*/
+bool isEmpty(Node *q)
 {
-    Node* start =*head;
-
-    // Create new Node
-    Node* temp = (Node*)malloc(sizeof(Node));
-    temp->data = d;
- 
-    // Special Case: The head of list has lesser
-    // priority than new node. So insert new
-    // node before head node and change head node.
-
-	temp->next = *head;
-        *head = temp;
-	printf("From pppush func %d\n",*head->data.id);
-
-    // if (head->data.priority > temp->data.priority) {
- 		
-    //     // Insert New Node before head
-    //     temp->next = head;
-    //     head = temp;
-    // }
-    // else {
- 
-    //     // Traverse the list and find a
-    //     // position to insert new node
-    //     while (start->next != NULL &&
-    //         start->next->data.priority < temp->data.priority) {
-    //         start = start->next;
-    //     }
- 
-    //     // Either at the ends of the list
-    //     // or at required position
-    //     temp->next = start->next;
-    //     start->next = temp;
-    // }
-}
- 
-// Function to check is list is empty
-int isEmpty(Node** head)
-{
-    return (*head) == NULL;
+	return q == NULL;
 }
 
+/******************************* End Data Structures *******************************/
 
-////////////////////////////////////////////////////////////////////////////////////////////////
-
-
-///////////////////////////////////////////////  End structs //////////////////////////////////////////
-
+/******************************* Some Important Functions *******************************/
 
 /*
 Function explaintion:-
@@ -127,90 +212,81 @@ Function explaintion:-
 	and run the schdular file and the clk file
 	Function Parameters:-
 		1-File Name :the name of the file that will be complied and run
-		2-args[]: Array to put the parameter if exist in it that will be sent to the file
+		2-args: the needed arguments to put the parameter if exist in it that will be sent to the file
 */
-
-
-void RunAndComplie(char* FileName,char* arg_0, char* arg_1, char* arg_3)
+void RunAndComplie(char *FileName, char *arg_0, char *arg_1, char *arg_2, char *arg_3)
 {
-	char * Complie;
-	Complie=(char*)malloc((20+2*sizeof(FileName)*sizeof(char)));
-	strcpy(Complie,"gcc ");
-	strcat(Complie,FileName);
-	strcat(Complie,".c ");
-	strcat(Complie,"-o ");
-	strcat(Complie,FileName);
-	strcat(Complie,".out");
+	char *Complie;
+	Complie = (char *)malloc((20 + 2 * sizeof(FileName) * sizeof(char)));
+	strcpy(Complie, "gcc ");
+	strcat(Complie, FileName);
+	strcat(Complie, ".c ");
+	strcat(Complie, "-o ");
+	strcat(Complie, FileName);
+	strcat(Complie, ".out");
 	system(Complie);
 	char FileNameOut[80];
 	strcpy(FileNameOut, FileName);
-	//fflush(stdout);
-	//printf("\n%s\n", FileName);
 	printf("\n");
-    strcat(FileNameOut,".out");
-    execl(FileNameOut,FileName, arg_0, arg_1, arg_3, NULL);
+	strcat(FileNameOut, ".out");
+	execl(FileNameOut, FileName, arg_0, arg_1, arg_2, arg_3, NULL);
 }
-
 
 //------------------------------------------------------------------------------------------------------------------------//
 /*
 Function explaintion:-
-	This function will be used in send and recieve the processed between the process generator that will read it 
+	This function will be used in send and recieve the processed between the process generator that will read it
 	and the schudlar that will take and and create it
 	Function Parameters:-
 		1-Identifier :- the unique of the message queue to control which will use the queue
 */
 
-
 int InitMsgQueue(char Idenitfier)
 {
-	key_t key=ftok("keyFile",Idenitfier);
-	int megid=msgget(key, 0666 | IPC_CREAT);
-	if(megid==-1)
+	key_t key = ftok("keyFile", Idenitfier);
+	int megid = msgget(key, 0666 | IPC_CREAT);
+	if (megid == -1)
 	{
-		printf("error in creation in message queue");	
+		printf("error in creation in message queue");
 		exit(-1);
 	}
 	return megid;
-
 }
-
 
 //------------------------------------------------------------------------------------------------------------------------//
 /*
 Function explaintion:-
-	This function will be used mainly in the remaining time of the process and it will be shared by the schdular and the 
-	running process 
+	This function will be used mainly in the remaining time of the process and it will be shared by the schdular and the
+	running process
 	Function Parameters:-
-		1-Idenitfier:- the unique of the share memory to control which one will use it 
+		1-Idenitfier:- the unique of the share memory to control which one will use it
 		2-IdShm:- it is pointer will be sent to put the shm id in it
 	The return value:
 		the function will return the address of the shared memory to use it in write and read
 */
 
-
-void * InitShm(char Idenitfier, int * IdShm)
+void *InitShm(char Idenitfier, int *IdShm)
 {
-    key_t Key = ftok("keyFile", Idenitfier);
-    int ShmId = shmget(Key, 4096, 0666 | IPC_CREAT);
-    *IdShm = ShmId;
+	key_t Key = ftok("keyFile", Idenitfier);
+	int ShmId = shmget(Key, 4096, 0666 | IPC_CREAT);
+	*IdShm = ShmId;
 
-    if (ShmId == -1)
-    {
-        perror("error in creation in shared memory");
-        exit(-1);
-    }
+	if (ShmId == -1)
+	{
+		perror("error in creation in shared memory");
+		exit(-1);
+	}
 
-    void * ShmAddr  = shmat(ShmId, (void *)0, 0);
-    return ShmAddr;
+	void *ShmAddr = shmat(ShmId, (void *)0, 0);
+	return ShmAddr;
 }
-
+//------------------------------------------------------------------------------------------------------------------------//
 /*
 two Functions :
 	these two functions used in send and receive to and from the message queue
 	Commen Parameters:
 		MsgId: the id of the queue to control it
-	Send: 
+	Send:
 		ArrivedProcess: it the process will be arrive at this moment
 	Rec:
 		return Process that sent be the process generator
@@ -218,166 +294,178 @@ two Functions :
 
 Process RecMsg(int MsgId)
 {
-	Message ResMessage;
-	int Flag=msgrcv(MsgId, &ResMessage, sizeof(ResMessage.CurrentProcess), 0, !IPC_NOWAIT );
 
-	if(Flag==-1)
+	Message ResMessage;
+	int Flag = msgrcv(MsgId, &ResMessage, sizeof(ResMessage.CurrentProcess), 0, !IPC_NOWAIT);
+
+	// if failed to receive, return a dummy process
+	if (Flag == -1)
 	{
-		printf("\nerror in reciving\n");
-		Process p;
-		p.arriavalTime = -1;		// just an indicator
-		return p;
-	}	
+		Process *p = (Process *)malloc(sizeof(Process));
+		p->LastProcess = true;
+		p->ArriavalTime = -1; // just an indicator
+		return *p;
+	}
+
 	return ResMessage.CurrentProcess;
 }
 
-void SendMsg(int MsgId,Process ArrivedProcess)
+void SendMsg(int MsgId, Process ArrivedProcess)
 {
-
 	Message SendMessage;
-	SendMessage.CurrentProcess=ArrivedProcess;
-	int Flag = msgsnd(MsgId, &SendMessage, sizeof(SendMessage.CurrentProcess), !IPC_NOWAIT );
-	if(Flag==-1)
+	SendMessage.CurrentProcess = ArrivedProcess;
+	int Flag = msgsnd(MsgId, &SendMessage, sizeof(SendMessage.CurrentProcess), !IPC_NOWAIT);
+
+	if (Flag == -1)
+	{
 		printf("\nerror in Sending\n");
-	//else printf("sent\n");
+	}
 }
 
 //------------------------------------------------------------------------------------------------------------------------//
-
-
-
-#define true 1
-#define false 0
-
-#define SHKEY 300
-
-
-///==============================
-//don't mess with this variable//
-int * shmaddr;                 //
-//===============================
-
-
-
-// get clock function
-int getClk()
-{
-    return *shmaddr;
-}
-
-
 /*
- * All process call this function at the beginning to establish communication between them and the clock module.
- * Again, remember that the clock is only emulation!
+Function explaintion:-
+	This function starts the prcess by forking and running the process file
+	Function Parameters:-
+		1-CurrentProcess:- The process to be run
+		2-MaxArrivalTime:- Arrival time of the last process in the input file
 */
-void initClk()
+void StartProcess(Process *CurrentProcess, int MaxArrivalTime)
 {
-    int shmid = shmget(SHKEY, 4, 0444);
-    while ((int)shmid == -1)
-    {
-        //Make sure that the clock exists
-        printf("Wait! The clock not initialized yet!\n");
-        sleep(1);
-        shmid = shmget(SHKEY, 4, 0444);
-    }
-    shmaddr = (int *) shmat(shmid, (void *)0, 0);
-}
+	OutputFile = fopen("scheduler.txt", "a");
 
+	if (!OutputFile)
+		perror("\nCan't open the scheduler text file\n");
 
-/*
- * All process call this function at the end to release the communication
- * resources between them and the clock module.
- * Again, Remember that the clock is only emulation!
- * Input: terminateAll: a flag to indicate whether that this is the end of simulation.
- *                      It terminates the whole system and releases resources.
-*/
+	CurrentProcess->Id_1 = fork();
 
-void destroyClk(bool terminateAll)
-{
-    shmdt(shmaddr);
-    if (terminateAll)
-    {
-        killpg(getpgrp(), SIGINT);
-    }
-}
-
-
-
-//---------------------------------------some functions needed by the HPF--------------------------------//
-void StartProcess(Process* CurrentProcess)
-{
-	OutputFile = fopen("scheduler.txt", "w");
-	CurrentProcess->id=fork();
-
-	if(CurrentProcess->id==0)
+	if (CurrentProcess->Id_1 == 0)
 	{
-		RunAndComplie("process",NULL,NULL, NULL);
+		RunAndComplie("process", NULL, NULL, NULL, NULL);
+	}
+
+	int waiting;
+	if (CurrentProcess->ArriavalTime >= getClk() - MaxArrivalTime)
+		waiting = 0;
+	else
+	{
+		waiting = getClk() - CurrentProcess->ArriavalTime - MaxArrivalTime;
+		waiting += 1;
 	}
 	fprintf(OutputFile, "At time %d process %d started arr %d total %d remain %d wait %d\n",
-            getClk(), CurrentProcess->id, CurrentProcess->arriavalTime, CurrentProcess->runTime,
-            CurrentProcess->runTime, getClk() - CurrentProcess->arriavalTime);
+			getClk() - MaxArrivalTime, CurrentProcess->Id_2, CurrentProcess->ArriavalTime, CurrentProcess->RunTime,
+			CurrentProcess->RunTime, waiting);
+	fclose(OutputFile);
 }
-// must take queue as paramet
-void ReadyProcessExist(int MsgId, Node*q)
+//------------------------------------------------------------------------------------------------------------------------//
+/*
+Function explaintion:-
+	This function checks if a new process is sent, reveive it, and push it in the ready queue
+	Function Parameters:-
+		1-Queue:- The ready queue ( for the ready processes )
+		2-Flag:-  A flag sent by ref to know if the receiving process is succeeded or not
+		3-Priority:- to determine the priority type of the passes queue
+		4-MaxArrivalTime:- Arrival time of the last process in the input file
+		5-ProcessesHashTime:- An array to store the number of processes that arrived at time x, (index = x)
+*/
+void ReadyProcessExist(int MsgId, Node **Queue, int *Flag, int Priority, int *MaxArrivalTime, int ProcessesHashTime[])
 {
-	
 	Process RecProcess;
-	while(1)
+	int index;
+
+	while (1)
 	{
 		RecProcess = RecMsg(MsgId);
 
-		if(RecProcess.arriavalTime != -1)
+		if (!RecProcess.LastProcess)
 		{
-			printf("before push %d\n", RecProcess.arriavalTime);
-			push(&q, RecProcess);
-/////			sleep(1);
-			printf("afer push %d\n", peek(q).id);
-if(RecProcess.id==9)
-{
-
-exit(1);
-}
-
+			push(Queue, RecProcess, Priority);
+			index = RecProcess.ArriavalTime;
+			ProcessesHashTime[index]++;
+			*Flag += 1;
 		}
-		else 
+		else
 		{
-			break;
+			push(Queue, RecProcess, Priority);
+			index = RecProcess.ArriavalTime;
+			ProcessesHashTime[index]++;
+			*Flag += 1;
+			*MaxArrivalTime = RecProcess.ArriavalTime;
+			return;
 		}
 	}
 }
-
-void FinishProcess(Process *FinishedProcess)
+//------------------------------------------------------------------------------------------------------------------------//
+/*
+Function explaintion:-
+	This function finishes prints the info of the process after terminating
+	Function Parameters:-
+		1-FinishedProcess:- The process that want to be terminated
+		2-ShmAddr:-  the shared memory address
+		3-MaxArrivalTime:- Arrival time of the last process in the input file
+*/
+void FinishProcess(Process *FinishedProcess, int *ShmAddr, int MaxArrivalTime)
 {
-	OutputFile = fopen("scheduler.txt", "w");
+	OutputFile = fopen("scheduler.txt", "a");
 
-	int FinishTime=getClk();
-	double WTA = (getClk() - FinishedProcess->arriavalTime) * 1.0 / FinishedProcess->runTime;
-    int wait = (getClk() - FinishedProcess->arriavalTime) - FinishedProcess->runTime;
-    fprintf(OutputFile, "At time %d process %d finished arr %d total %d remain 0 wait %d TA %d WTA %.2f\n", getClk(),
-            FinishedProcess->id, FinishedProcess->arriavalTime, FinishedProcess->runTime,
-            wait, getClk() - FinishedProcess->arriavalTime, WTA); 
+	int FinishTime = getClk();
+	double WTA = (getClk() - FinishedProcess->ArriavalTime) * 1.0 / FinishedProcess->RunTime;
+	int wait = (getClk() - FinishedProcess->ArriavalTime) - FinishedProcess->RunTime;
+	fprintf(OutputFile, "At time %d process %d finished arr %d total %d remain 0 wait %d TA %d WTA %.2f\n", getClk() - MaxArrivalTime,
+			FinishedProcess->Id_2, FinishedProcess->ArriavalTime, FinishedProcess->RunTime,
+			wait, getClk() - FinishedProcess->ArriavalTime, WTA);
+
+	fclose(OutputFile);
 }
-
-// stop the running process
-void StopProcess(Process p)
+//------------------------------------------------------------------------------------------------------------------------//
+/*
+Function explaintion:-
+	This function stops the passed process by sending a SIGSTOP to the process,
+	and prints the info of the process
+	Function Parameters:-
+		1-p:- The process that want to be terminated
+		2-MaxArrivalTime:- Arrival time of the last process in the input file
+*/
+void StopProcess(Process p, int MaxArrivalTime)
 {
-	kill(p.id, SIGSTOP);
+	OutputFile = fopen("scheduler.txt", "a");
+	kill(p.Id_1, SIGSTOP);
 
-	fprintf(OutputFile, "At time %d process %d stopped arr %d total %d remain %d\n", getClk(),
-            p.id, p.arriavalTime, p.runTime,p.remainingTime); 
+	fprintf(OutputFile, "At time %d process %d stopped arr %d total %d remain %d\n", getClk() - MaxArrivalTime,
+			p.Id_2, p.ArriavalTime, p.RunTime, p.RemainingTime);
+	fclose(OutputFile);
 }
-
-// resume the passed process
-void ContinueProcess(Process p)
+//------------------------------------------------------------------------------------------------------------------------//
+/*
+Function explaintion:-
+	This function resumes the passed process by sending a SIGCONT to the process,
+	and prints the time which the process resumed its work at
+	Function Parameters:-
+		1-p:- The process that want to be resumed
+		2-MaxArrivalTime:- Arrival time of the last process in the input file
+*/
+void ContinueProcess(Process p, int MaxArrivalTime)
 {
-	kill(p.id, SIGCONT);
-	fprintf(OutputFile, "At time %d process %d resumed arr %d total %d remain %d\n", getClk(),
-            p.id, p.arriavalTime, p.runTime,p.remainingTime); 
+	OutputFile = fopen("scheduler.txt", "a");
+	kill(p.Id_1, SIGCONT);
+	fprintf(OutputFile, "At time %d process %d resumed arr %d total %d remain %d\n", getClk() - MaxArrivalTime,
+			p.Id_2, p.ArriavalTime, p.RunTime, p.RemainingTime);
+	fclose(OutputFile);
 }
-// simple comparing two INTs
-int comparePriorities(int first,int second)
+//------------------------------------------------------------------------------------------------------------------------//
+/*
+Function explaintion:-
+	This function compares between two passed variables,
+		returns 1 if the first number is the bigger,
+		otherwirse, returns 0
+	Function Parameters:-
+		1-First:- The first number
+		2-Second:- The second number
+*/
+int comparePriorities(int First, int Second)
 {
-	if (first > second) return 1;
-	else return 0;
-	
+	if (First > Second)
+		return 1;
+	else
+		return 0;
 }

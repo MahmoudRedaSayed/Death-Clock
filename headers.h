@@ -1,4 +1,4 @@
-#include <stdio.h>      //if you don't use scanf/printf change this include
+#include <stdio.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/file.h>
@@ -10,11 +10,12 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <signal.h>
-
-typedef short bool;
+#include <string.h>
+#include <assert.h>
+#include <string.h>
+#include <stdbool.h>
 #define true 1
 #define false 0
-
 #define SHKEY 300
 
 
@@ -23,20 +24,37 @@ typedef short bool;
 int * shmaddr;                 //
 //===============================
 
-// struct of the process
+/******************************** Structs Delcaration ***********************************************/
+// Process Struct
 struct Process
 {
-    int id, parentId, arriavalTime, runTime, waitingTime,  priority;
-    bool running;
+    int Id_1,   // for forking
+        Id_2,   // for input
+        ArriavalTime,
+        RunTime,
+        WaitingTime,
+        RemainingTime,
+        Priority;
+    bool LastProcess;
 };
 typedef struct Process Process;
+
+// Message Struct
+struct Message
+{
+	long mtype;
+	Process CurrentProcess;
+};
+typedef struct Message Message;
+
+
+/*********************************** Functions ***********************************************/
 
 // get clock function
 int getClk()
 {
     return *shmaddr;
 }
-
 
 /*
  * All process call this function at the beginning to establish communication between them and the clock module.
@@ -73,7 +91,7 @@ void destroyClk(bool terminateAll)
     }
 }
 
-// initialization of the msg queue, and return its id
+
 
 
 // initialization of a shared memroy segment, and return its id

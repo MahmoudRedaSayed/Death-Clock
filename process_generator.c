@@ -1,69 +1,61 @@
 #include "Helpers.c"
-void clearResources(int);
-void tostring(char str[], int num);
 
-/*------------------   Global Variables -----------------------*/
+/******************************* Global Variables *******************************/
 int msgQueueId,
     sharedMemoryId;
 
-/*------------------  End Global Variables ----------------------*/
+
+void clearResources(int);
+
 
 int main(int argc, char * argv[])
 {
     signal(SIGINT, clearResources);
-    // TODO Initialization
+
     // 1. Read the input files.
+    FILE* InputFile = fopen("processes.txt", "r");  // open file for read
 
-    FILE* inputFile = fopen("processes.txt", "r");  // open file for read
-    char* line = NULL;
-    int lineSize = 0,
-        countProcesses = 0;
-    
-    if (!inputFile)
+    if (!InputFile)
         perror("Can't open the input file");
-    
 
+    char* Line = NULL;
+    int LineSize = 0,
+        CountProcesses = 0;
+    
     // get the number of processes
-    while (getline(&line, &lineSize, inputFile) != -1)
-        // check if the line is commented or not
-        if (line[0] != '#') countProcesses++;
+    while (getline(&Line, &LineSize, InputFile) != -1)
+        if (Line[0] != '#') // check if the line is commented or not
+            CountProcesses++;   
 
     // close the input file
-    fclose(inputFile);
+    fclose(InputFile);
 
-    Process* allProcesses = malloc(countProcesses * sizeof(Process));
+    Process* AllProcesses = malloc(CountProcesses * sizeof(Process));
+    int LastArrialTime = 0;
 
     // store the input data
     fopen("processes.txt", "r");
     int i = 0;
-    while (getline(&line, &lineSize, inputFile) != -1)
+    while (getline(&Line, &LineSize, InputFile) != -1)
     {
-        fscanf(inputFile,"%d", &allProcesses[i].id);
-        fscanf(inputFile,"%d", &allProcesses[i].arriavalTime);
-        fscanf(inputFile,"%d", &allProcesses[i].runTime);
-        fscanf(inputFile,"%d", &allProcesses[i].priority);
+        fscanf(InputFile,"%d", &AllProcesses[i].Id_2);
+        fscanf(InputFile,"%d", &AllProcesses[i].ArriavalTime);
+        fscanf(InputFile,"%d", &AllProcesses[i].RunTime);
+        fscanf(InputFile,"%d", &AllProcesses[i].Priority);
 
-        allProcesses[i].running = 0;
-        allProcesses[i].waitingTime = 0;
-        allProcesses[i].remainingTime = allProcesses[i].runTime;
-        allProcesses[i].lastProcess = false;
+        AllProcesses[i].WaitingTime = 0;
+        AllProcesses[i].RemainingTime = AllProcesses[i].RunTime;
+        AllProcesses[i].LastProcess = false;
 
-        if (i == countProcesses - 1)
-            allProcesses[i].lastProcess = true;
+        if (i == CountProcesses - 1)        // check if the last process or not
+            {
+                AllProcesses[i].LastProcess = true;
+                LastArrialTime = AllProcesses[i].ArriavalTime;
+            }
         
         i++;
-
-        
     }
-    fclose(inputFile);
-
-    // test input
-    // for (int i = 0; i < countProcesses; i++)
-    // {
-    //     printf("Process %i:\n", i );
-    //     printf("id :%i, arriavalTime: %i, runTime: %i, priority : %i\n", allProcesses[i].id, allProcesses[i].arriavalTime, allProcesses[i].runTime, allProcesses[i].priority);
-    // }
-    
+    fclose(InputFile);
     
     // 2. Ask the user for the chosen scheduling algorithm and its parameters, if there are any.
     char args[3][2];
@@ -92,66 +84,67 @@ int main(int argc, char * argv[])
     // 3. Initiate and create the scheduler and clock processes.
     msgQueueId     = InitMsgQueue('q');
     int *shmAddr   = InitShm('m', &sharedMemoryId);
-    printf("ID in gen:%d\n", msgQueueId);
+
     // run the clock process
     char* clkArgs[2];
     clkArgs[0] = NULL;
     clkArgs[1] = NULL;
     int clkID = fork();
     if (clkID == 0)
-        RunAndComplie("clk", NULL, NULL, NULL);
+        RunAndComplie("clk", NULL, NULL, NULL, NULL);
     else if (clkID == -1)
     {
         perror("Failed to fork the clock process");
         exit(-1);
     }
+
     // run the scheduler process
     char numOfProcesses[2];
-    sprintf(numOfProcesses, "%d", countProcesses);      // convert int to string
-    //printf("%s\n", numOfProcesses);exit(-1);
+    sprintf(numOfProcesses, "%d", CountProcesses);      // convert int to string
+    char lastArriveTime[2];
+    sprintf(lastArriveTime, "%d",LastArrialTime);      // convert int to string
 
-    int schedulerID = fork();
-    if (schedulerID == 0)
-        RunAndComplie("scheduler", args[0], args[1], numOfProcesses);
-    else if (schedulerID == -1)
+    int SchedulerID = fork();
+
+    if (SchedulerID == 0)
+        RunAndComplie("scheduler", args[0], args[1], numOfProcesses, lastArriveTime);
+    else if (SchedulerID == -1)
     {
         perror("Failed to fork the scheduler process");
         exit(-1);
     }
 
-    // 4. Use this function after creating the clock process to initialize clock
+    // 4. Initialize clock
     initClk();
-    
-    // TODO Generation Main Loop
+
     // 5. Create a data structure for processes and provide it with its parameters.
     // 6. Send the information to the scheduler at the appropriate time.
-
     int time;
-    bool done = false;
     int sendCounter = 0;
-    while (! done)
+    while (1)
     {
         time = getClk();
          
-        for (int i = 0; i < countProcesses; i++)
+        for (int i = 0; i < CountProcesses; i++)
         {
-            if (allProcesses[i].arriavalTime == time)
+            if (AllProcesses[i].ArriavalTime == time)
             {
-                printf("id:%d\n", allProcesses[i].id);
-                SendMsg(msgQueueId, allProcesses[i]);
-                //printf("Sent process #:%d\n", i+1);
+                SendMsg(msgQueueId, AllProcesses[i]);
                 sendCounter++;
-                allProcesses[i].arriavalTime = -1;
+                AllProcesses[i].ArriavalTime = -1;
             }
-                
-            if (allProcesses[i].lastProcess && sendCounter == countProcesses)
-                done = true;
-        } 
+
+            if (i == CountProcesses-1)
+            {
+                AllProcesses[i].LastProcess = true;
+            }
+        }
     }
+    
     // 7. Clear clock resources
     msgctl(msgQueueId, IPC_RMID, (struct msqid_ds *)0);
     shmctl(sharedMemoryId, IPC_RMID, NULL);
-    destroyClk(true);
+    //destroyClk(true);
 }
 
 void clearResources(int signum)

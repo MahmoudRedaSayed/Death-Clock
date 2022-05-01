@@ -1,28 +1,24 @@
 #include "Helpers.c"
 
-/* Modify this file as needed*/
-int * remainingtime;
-int * shmid;
-int last=-1;
-
 int main(int agrc, char * argv[])
 {
     initClk();
-    remainingtime=(int *)InitShm("m",shmid);
-    //TODO it needs to get the remaining time from somewhere
-    //remainingtime = ??;
-    while (*remainingtime >= 0)
+    printf("process starts\n");
+    int last = -1; // -1 => just to enter in the first time
+    int ShmId = 0;
+    int *RemainingTime = (int *)InitShm('m', &ShmId);
+
+    while (*RemainingTime > 0)
     {
-        while (last==getClk());
+        while (last==getClk())
+        ;
         if(last!=getClk())
         {
-            *remainingtime--;
+            *RemainingTime -= 1;
             last=getClk();
         }
-        
     }
     
-    destroyClk(false);
-    
+    // destroyClk(false);
     return 0;
 }
