@@ -140,11 +140,7 @@ void RoundRobin(int quantum)
 
     while (CountProcesses > 0)
     {
-        if (*ShmAddr != -1)
-        {
-            CurrentQuantum = getClk() - MaxArrivalTime - var;
-        }
-
+        CurrentQuantum++;
         // Receive the arrived processes
         if (ReceivedCounter > 0)
         {
@@ -153,61 +149,44 @@ void RoundRobin(int quantum)
         }
 
         // check whether the current process is finished or not
-        if (*ShmAddr == 0 || CurrentProcess.RemainingTime == CurrentQuantum)
+        if (*ShmAddr == 0 )
         {
             FinishProcess(&CurrentProcess, ShmAddr, MaxArrivalTime);
-            var += CurrentQuantum;
             CountProcesses--;
             CurrentQuantum = 0; // reset
             if (CountProcesses == 0)
             {
                 break;
             }
-            else
-            {
-
-                // switch to another process, or get the first arrived process to work
-                CurrentProcess = pop(&q);
-
-                // update the remaining time in the memory
-                *ShmAddr = CurrentProcess.RemainingTime;
-                x = CurrentProcess.RemainingTime;
-
-                // check if this is the first time to start or conitue
-                if (CurrentProcess.RemainingTime == CurrentProcess.RunTime)
-                    StartProcess(&CurrentProcess, MaxArrivalTime);
-                else
-                    ContinueProcess(CurrentProcess, MaxArrivalTime);
-            }
         }
 
         // if the quantum is over ==> switch to another process if any
-        if ((CurrentQuantum == quantum || (*ShmAddr <= 0 && CurrentQuantum == quantum) || *ShmAddr == -1) && CurrentProcess.RemainingTime != *ShmAddr)
+        // the condition (*ShmAddr <= 0 || CurrentQuantum == 0)
+        // *ShmAddr <= 0  => to manage the finished process
+        // CurrentQuantum == 0 => to manage the stopped process and it possible to be done in the finished process also
+        if (((*ShmAddr <= 0 || CurrentQuantum == quantum)) &&!isEmpty(q) )
         {
-            if (*ShmAddr != -1 && CurrentQuantum == quantum && CurrentProcess.RemainingTime != 0) // if true => there was a process already running
+            // The condition (CurrentQuantum == quantum && !*ShmAddr<= 0) 
+            // CurrentQuantum == quantum && !*ShmAddr<= 0 => to make sure that doesn't come from the finish part
+            // that the value of the share memory will not be equal zero and this process will be stopped
+            if (CurrentQuantum == quantum && !*ShmAddr<= 0) // if true => there was a process already running
             {
                 StopProcess(CurrentProcess, MaxArrivalTime);
-                var += CurrentQuantum;
                 CurrentProcess.RemainingTime = *ShmAddr;
                 push(&q, CurrentProcess, 0);
             }
-
             // switch to another process, or get the first arrived process to work
-            if (!isEmpty(q))
-            {
                 CurrentProcess = pop(&q);
                 // update the remaining time in the memory
                 *ShmAddr = CurrentProcess.RemainingTime;
-                x = CurrentProcess.RemainingTime;
-
                 // check if this is the first time to start or conitue
                 if (CurrentProcess.RemainingTime == CurrentProcess.RunTime)
                     StartProcess(&CurrentProcess, MaxArrivalTime);
                 else
                     ContinueProcess(CurrentProcess, MaxArrivalTime);
-            }
             CurrentQuantum = 0; // reset
         }
+        nextSecondWaiting(&last);
     }
 }
 //------------------------------------------------------------------------------------------------------------------------//
@@ -219,7 +198,6 @@ Function explaintion:-
 */
 void SRTN()
 {
-    initClk();
     printf("SRTN starts\n");
 
     Process CurrentProcess;
@@ -251,50 +229,6 @@ void SRTN()
             ReadyProcessExist(MsgQueueId, &q, &flag, 0, &MaxArrivalTime, ProcessesHashTime);
             ReceivedCounter -= flag;
         }
-        last = getClk();
-
-        if (!isEmpty(q))
-        {
-            Process PoppedProcess;
-
-            int time = getClk() - MaxArrivalTime; // clock
-            for (int j = ProcessesHashTime[time]; j > 0; j--)
-            {
-                PoppedProcess = pop(&q);
-                push(&Priority_Q, PoppedProcess, 2);
-            }
-
-            ProcessesHashTime[time] = -1;
-        }
-
-        if (isEmpty(Priority_Q) && *ShmAddr != -1)
-        {
-            condition = 0;
-        }
-        else
-        {
-            LowestRemainingTime = peek(Priority_Q).RemainingTime;
-            condition = comparePriorities(*ShmAddr, LowestRemainingTime); // flag : 1 --> switch
-        }
-        if (condition == 1 && *ShmAddr != -1)
-        {
-            CurrentProcess.RemainingTime = *ShmAddr;
-            push(&Priority_Q, CurrentProcess, 2);
-            StopProcess(CurrentProcess, MaxArrivalTime);
-            CurrentProcess = pop(&Priority_Q);
-            *ShmAddr = CurrentProcess.RemainingTime + 1;
-
-            if (CurrentProcess.RemainingTime == CurrentProcess.RunTime)
-            {
-                StartProcess(&CurrentProcess, MaxArrivalTime);
-                continue;
-            }
-            else
-            {
-                ContinueProcess(CurrentProcess, MaxArrivalTime);
-                continue;
-            }
-        }
 
         if (*ShmAddr == 0)
         {
@@ -307,27 +241,33 @@ void SRTN()
             }
         }
 
-        if (!isEmpty(Priority_Q) && *ShmAddr == -1)
+
+
+        if (!isEmpty(Priority_Q) )
         {
-            // pop a new process to run it
+            // compare 
+            LowestRemainingTime = peek(Priority_Q).RemainingTime;
+             if (LowestRemainingTime < *ShmAddr) // if shared memory is -1 it will not go into it
+            {
+                CurrentProcess.RemainingTime = *ShmAddr;
+                push(&Priority_Q, CurrentProcess, 2);
+                StopProcess(CurrentProcess, MaxArrivalTime);
+            }
             CurrentProcess = pop(&Priority_Q);
-            *ShmAddr = CurrentProcess.RemainingTime + 1;
+            *ShmAddr = CurrentProcess.RemainingTime ;
             if (CurrentProcess.RemainingTime == CurrentProcess.RunTime)
             {
                 StartProcess(&CurrentProcess, MaxArrivalTime);
                 continue;
             }
             else
+            {
                 ContinueProcess(CurrentProcess, MaxArrivalTime);
+                continue;
+            }
         }
-
         // wait until the clock changes
-        while (last == getClk())
-            ;
-        if (last != getClk())
-        {
-            last = getClk();
-        }
+       nextSecondWaiting(&last);
     }
 }
 

@@ -296,7 +296,7 @@ Process RecMsg(int MsgId)
 {
 
 	Message ResMessage;
-	int Flag = msgrcv(MsgId, &ResMessage, sizeof(ResMessage.CurrentProcess), 0, !IPC_NOWAIT);
+	int Flag = msgrcv(MsgId, &ResMessage, sizeof(ResMessage.CurrentProcess), 0, IPC_NOWAIT);
 
 	// if failed to receive, return a dummy process
 	if (Flag == -1)
@@ -320,6 +320,17 @@ void SendMsg(int MsgId, Process ArrivedProcess)
 	{
 		printf("\nerror in Sending\n");
 	}
+}
+//------------------------------------------------------------------------------------------------------------------------//
+/*
+Function explaintion:-
+	This function to wait for one second
+*/
+void nextSecondWaiting(int *lastSecond)
+{
+    while (*lastSecond == getClk())
+        ;
+    *lastSecond = getClk();
 }
 
 //------------------------------------------------------------------------------------------------------------------------//
@@ -408,12 +419,12 @@ void FinishProcess(Process *FinishedProcess, int *ShmAddr, int MaxArrivalTime)
 {
 	OutputFile = fopen("scheduler.txt", "a");
 
-	int FinishTime = getClk();
-	double WTA = (getClk() - FinishedProcess->ArriavalTime) * 1.0 / FinishedProcess->RunTime;
-	int wait = (getClk() - FinishedProcess->ArriavalTime) - FinishedProcess->RunTime;
-	fprintf(OutputFile, "At time %d process %d finished arr %d total %d remain 0 wait %d TA %d WTA %.2f\n", getClk() - MaxArrivalTime,
-			FinishedProcess->Id_2, FinishedProcess->ArriavalTime, FinishedProcess->RunTime,
-			wait, getClk() - FinishedProcess->ArriavalTime, WTA);
+	finishTime = getClk();
+    double WTA = (getClk() - running.arrivalTime) * 1.0 / running.executaionTime;
+    int wait = (getClk() - running.arrivalTime) - running.executaionTime;
+    fprintf(schedularFile, "At time %d process %d finished arr %d total %d remain 0 wait %d TA %d WTA %.2f\n", getClk(),
+            running.id, running.arrivalTime, running.executaionTime,
+            wait, getClk() - running.arrivalTime, WTA);
 
 	fclose(OutputFile);
 }
