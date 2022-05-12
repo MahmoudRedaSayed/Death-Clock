@@ -114,7 +114,7 @@ void push(Node **q, Process p, int PriorityFlag) // PriorityFlag:1 ( priority is
 		}
 	}
 
-	else
+	else if(PriorityFlag == 2)		// priority is on the remaining time
 	{
 		if (*q == NULL)
 		{
@@ -302,7 +302,6 @@ Process RecMsg(int MsgId)
 	if (Flag == -1)
 	{
 		Process *p = (Process *)malloc(sizeof(Process));
-		p->LastProcess = true;
 		p->ArriavalTime = -1; // just an indicator
 		return *p;
 	}
@@ -321,17 +320,6 @@ void SendMsg(int MsgId, Process ArrivedProcess)
 		printf("\nerror in Sending\n");
 	}
 }
-//------------------------------------------------------------------------------------------------------------------------//
-/*
-Function explaintion:-
-	This function to wait for one second
-*/
-void nextSecondWaiting(int *lastSecond)
-{
-    while (*lastSecond == getClk())
-        ;
-    *lastSecond = getClk();
-}
 
 //------------------------------------------------------------------------------------------------------------------------//
 /*
@@ -339,9 +327,8 @@ Function explaintion:-
 	This function starts the prcess by forking and running the process file
 	Function Parameters:-
 		1-CurrentProcess:- The process to be run
-		2-MaxArrivalTime:- Arrival time of the last process in the input file
 */
-void StartProcess(Process *CurrentProcess, int MaxArrivalTime)
+void StartProcess(Process *CurrentProcess)
 {
 	OutputFile = fopen("scheduler.txt", "a");
 
@@ -355,17 +342,9 @@ void StartProcess(Process *CurrentProcess, int MaxArrivalTime)
 		RunAndComplie("process", NULL, NULL, NULL, NULL);
 	}
 
-	int waiting;
-	if (CurrentProcess->ArriavalTime >= getClk() - MaxArrivalTime)
-		waiting = 0;
-	else
-	{
-		waiting = getClk() - CurrentProcess->ArriavalTime - MaxArrivalTime;
-		waiting += 1;
-	}
 	fprintf(OutputFile, "At time %d process %d started arr %d total %d remain %d wait %d\n",
-			getClk() - MaxArrivalTime, CurrentProcess->Id_2, CurrentProcess->ArriavalTime, CurrentProcess->RunTime,
-			CurrentProcess->RunTime, waiting);
+			getClk(), CurrentProcess->Id_2, CurrentProcess->ArriavalTime, CurrentProcess->RunTime,
+			CurrentProcess->RunTime, getClk() - CurrentProcess->ArriavalTime);
 	fclose(OutputFile);
 }
 //------------------------------------------------------------------------------------------------------------------------//
@@ -376,35 +355,26 @@ Function explaintion:-
 		1-Queue:- The ready queue ( for the ready processes )
 		2-Flag:-  A flag sent by ref to know if the receiving process is succeeded or not
 		3-Priority:- to determine the priority type of the passes queue
-		4-MaxArrivalTime:- Arrival time of the last process in the input file
-		5-ProcessesHashTime:- An array to store the number of processes that arrived at time x, (index = x)
+		4-ProcessesHashTime:- An array to store the number of processes that arrived at time x, (index = x)
 */
-void ReadyProcessExist(int MsgId, Node **Queue, int *Flag, int Priority, int *MaxArrivalTime, int ProcessesHashTime[])
+void ReadyProcessExist(int MsgId, Node **Queue, int *Flag, int Priority, int* last)
 {
+
 	Process RecProcess;
 	int index;
 
-	while (1)
-	{
-		RecProcess = RecMsg(MsgId);
+	RecProcess = RecMsg(MsgId);
+	push(Queue, RecProcess, Priority);
+	printf("process : %d\n", RecProcess.Id_2);
 
-		if (!RecProcess.LastProcess)
-		{
-			push(Queue, RecProcess, Priority);
-			index = RecProcess.ArriavalTime;
-			ProcessesHashTime[index]++;
-			*Flag += 1;
-		}
-		else
-		{
-			push(Queue, RecProcess, Priority);
-			index = RecProcess.ArriavalTime;
-			ProcessesHashTime[index]++;
-			*Flag += 1;
-			*MaxArrivalTime = RecProcess.ArriavalTime;
-			return;
-		}
-	}
+	// if (RecProcess.Id_2 == 1)
+	// {
+	// 	*last = -1;
+	// }
+	
+
+	return;
+	
 }
 //------------------------------------------------------------------------------------------------------------------------//
 /*
@@ -413,18 +383,17 @@ Function explaintion:-
 	Function Parameters:-
 		1-FinishedProcess:- The process that want to be terminated
 		2-ShmAddr:-  the shared memory address
-		3-MaxArrivalTime:- Arrival time of the last process in the input file
 */
-void FinishProcess(Process *FinishedProcess, int *ShmAddr, int MaxArrivalTime)
+void FinishProcess(Process *FinishedProcess, int *ShmAddr)
 {
 	OutputFile = fopen("scheduler.txt", "a");
 
-	finishTime = getClk();
-    double WTA = (getClk() - running.arrivalTime) * 1.0 / running.executaionTime;
-    int wait = (getClk() - running.arrivalTime) - running.executaionTime;
-    fprintf(schedularFile, "At time %d process %d finished arr %d total %d remain 0 wait %d TA %d WTA %.2f\n", getClk(),
-            running.id, running.arrivalTime, running.executaionTime,
-            wait, getClk() - running.arrivalTime, WTA);
+	int FinishTime = getClk();
+	double WTA = (getClk() - FinishedProcess->ArriavalTime) * 1.0 / FinishedProcess->RunTime;
+	int wait = (getClk() - FinishedProcess->ArriavalTime) - FinishedProcess->RunTime;
+	fprintf(OutputFile, "At time %d process %d finished arr %d total %d remain 0 wait %d TA %d WTA %.2f\n", getClk(),
+			FinishedProcess->Id_2, FinishedProcess->ArriavalTime, FinishedProcess->RunTime,
+			wait, getClk() - FinishedProcess->ArriavalTime, WTA);
 
 	fclose(OutputFile);
 }
@@ -435,14 +404,13 @@ Function explaintion:-
 	and prints the info of the process
 	Function Parameters:-
 		1-p:- The process that want to be terminated
-		2-MaxArrivalTime:- Arrival time of the last process in the input file
 */
-void StopProcess(Process p, int MaxArrivalTime)
+void StopProcess(Process p)
 {
 	OutputFile = fopen("scheduler.txt", "a");
 	kill(p.Id_1, SIGSTOP);
 
-	fprintf(OutputFile, "At time %d process %d stopped arr %d total %d remain %d\n", getClk() - MaxArrivalTime,
+	fprintf(OutputFile, "At time %d process %d stopped arr %d total %d remain %d\n", getClk(),
 			p.Id_2, p.ArriavalTime, p.RunTime, p.RemainingTime);
 	fclose(OutputFile);
 }
@@ -453,16 +421,30 @@ Function explaintion:-
 	and prints the time which the process resumed its work at
 	Function Parameters:-
 		1-p:- The process that want to be resumed
-		2-MaxArrivalTime:- Arrival time of the last process in the input file
 */
-void ContinueProcess(Process p, int MaxArrivalTime)
+void ContinueProcess(Process p)
 {
 	OutputFile = fopen("scheduler.txt", "a");
 	kill(p.Id_1, SIGCONT);
-	fprintf(OutputFile, "At time %d process %d resumed arr %d total %d remain %d\n", getClk() - MaxArrivalTime,
+	fprintf(OutputFile, "At time %d process %d resumed arr %d total %d remain %d\n", getClk(),
 			p.Id_2, p.ArriavalTime, p.RunTime, p.RemainingTime);
 	fclose(OutputFile);
 }
+//------------------------------------------------------------------------------------------------------------------------//
+/*
+Function explaintion:-
+	This function to wait for one second
+*/
+void nextSecondWaiting(int *lastSecond)
+{
+    while (*lastSecond == getClk())
+        ;
+    *lastSecond = getClk();
+}
+
+//------------------------------------------------------------------------------------------------------------------------//
+
+
 //------------------------------------------------------------------------------------------------------------------------//
 /*
 Function explaintion:-

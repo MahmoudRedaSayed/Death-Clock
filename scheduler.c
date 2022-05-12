@@ -4,25 +4,30 @@ int MsgQueueId,
     SharedMemoryId,
     CountProcesses,
     LastArrivalTime,
-    ReceivedCounter;
+    ReceivedCounter,
+    flag,
+    last;
+    chosenAlgorithm;
 int *ShmAddr;
 bool LastProcess;
-
+Node *q = NULL;
 
 void clearResources(int);
+void checkRecieving(int signum);
 
 int main(int argc, char *argv[])
 {
     initClk();
     signal(SIGINT, clearResources); // upon termination release the clock resources.
+    signal(SIGUSR1, checkRecieving);
 
     printf("Scheduler is starting\n");
 
     MsgQueueId = InitMsgQueue('q');
     ShmAddr = InitShm('m', &SharedMemoryId);
+    chosenAlgorithm = atoi(argv[1]);
 
-    int chosenAlgorithm = atoi(argv[1]),
-        quantum = atoi(argv[2]),
+    int quantum = atoi(argv[2]),
         NumOfProcesses = atoi(argv[3]);
     LastArrivalTime = atoi(argv[4]);
 
@@ -57,58 +62,35 @@ void HPF()
     printf("Start HPF Algo\n");
 
     Process CurrentProcess;
-    Node *q = NULL;
 
-    int flag = 0,
-        MaxArrivalTime = -1,
-        last = -1,
-        timeConsume = 0,
-        ProcessesHashTime[LastArrivalTime];
+    last = -1;
+    int timeConsume = 0;
 
     ReceivedCounter = CountProcesses;
-    CurrentProcess.LastProcess = false;
-    CurrentProcess.Priority = 11;
+    CurrentProcess.LastProcess = false; // to enter the first iteration of the next loop
     *ShmAddr = -1;
 
-    while (!(*ShmAddr == -1 && CountProcesses == 0 && CurrentProcess.LastProcess))
+    while (!(*ShmAddr == -1 && CurrentProcess.LastProcess))
     {
-        // function to check if there is new process or not
-        if (ReceivedCounter > 0)
+        // last = getClk();
+        printf("shmaddr:%d\n", *ShmAddr);
+        if (*ShmAddr == 0)
         {
-            ReadyProcessExist(MsgQueueId, &q, &flag, 1, &MaxArrivalTime, ProcessesHashTime);
-            ReceivedCounter -= flag;
-        }
-
-        last = getClk();
-
-        if (*ShmAddr == 0 && (getClk() - MaxArrivalTime - timeConsume == CurrentProcess.RemainingTime))
-        {
-            FinishProcess(&CurrentProcess, ShmAddr, MaxArrivalTime);
-            timeConsume += CurrentProcess.RunTime;
+            FinishProcess(&CurrentProcess, ShmAddr);
             *ShmAddr = -1;
-            CountProcesses--;
-            if (CountProcesses == 0)
-            {
-                break;
-            }
+            
         }
 
-        if (CountProcesses > 0 && *ShmAddr == -1 && flag >= 1)
+        if (*ShmAddr == -1 && !isEmpty(q))
         {
             // pop a new process to run it
             CurrentProcess = pop(&q);
             *ShmAddr = CurrentProcess.RunTime;
-            StartProcess(&CurrentProcess, MaxArrivalTime);
-            flag--;
+            StartProcess(&CurrentProcess);
         }
 
         // wait until the clock changes
-        while (last == getClk())
-            ;
-        if (last != getClk())
-        {
-            last = getClk();
-        }
+        nextSecondWaiting(&last);
     }
 }
 //------------------------------------------------------------------------------------------------------------------------//
@@ -119,74 +101,70 @@ Function explaintion:-
     Algorithm Parameters:-
         1-quantum:- The time quantum
 */
+
 void RoundRobin(int quantum)
 {
     printf("Round Robin Algorithm Starts\n");
     Process CurrentProcess;
-    Node *q = NULL;
 
     int CurrentQuantum = 0,
         index = 0,
         flag = 0,
         x = 0,
-        MaxArrivalTime = -1,
         var = 0,
         last = -1,
         ProcessesHashTime[LastArrivalTime];
 
     *ShmAddr = -1;
     ReceivedCounter = CountProcesses;
-    CurrentProcess.RemainingTime = -2;       // to prevent it enter the block of code that finishes the process in the start
+    CurrentProcess.RemainingTime = -2; // to prevent it enter the block of code that finishes the process in the start
 
-    while (CountProcesses > 0)
+    last = -1;
+
+    while (!(*ShmAddr == -1 && CurrentProcess.LastProcess && isEmpty(q)))
     {
+        nextSecondWaiting(&last);
         CurrentQuantum++;
-        // Receive the arrived processes
-        if (ReceivedCounter > 0)
-        {
-            ReadyProcessExist(MsgQueueId, &q, &flag, 0, &MaxArrivalTime, ProcessesHashTime);
-            ReceivedCounter -= flag;
-        }
-
         // check whether the current process is finished or not
-        if (*ShmAddr == 0 )
+        if (*ShmAddr == 0)
         {
-            FinishProcess(&CurrentProcess, ShmAddr, MaxArrivalTime);
-            CountProcesses--;
+            printf("clk:%d\n", getClk());
+            FinishProcess(&CurrentProcess, ShmAddr);
+            *ShmAddr = -1;
             CurrentQuantum = 0; // reset
-            if (CountProcesses == 0)
-            {
-                break;
-            }
+            // if (CountProcesses == 0)
+            // {
+            //     break;
+            // }
         }
 
         // if the quantum is over ==> switch to another process if any
         // the condition (*ShmAddr <= 0 || CurrentQuantum == 0)
         // *ShmAddr <= 0  => to manage the finished process
         // CurrentQuantum == 0 => to manage the stopped process and it possible to be done in the finished process also
-        if (((*ShmAddr <= 0 || CurrentQuantum == quantum)) &&!isEmpty(q) )
+        if ((*ShmAddr < 0 || CurrentQuantum == quantum) && !isEmpty(q))
         {
-            // The condition (CurrentQuantum == quantum && !*ShmAddr<= 0) 
+            // The condition (CurrentQuantum == quantum && !*ShmAddr<= 0)
             // CurrentQuantum == quantum && !*ShmAddr<= 0 => to make sure that doesn't come from the finish part
             // that the value of the share memory will not be equal zero and this process will be stopped
-            if (CurrentQuantum == quantum && !*ShmAddr<= 0) // if true => there was a process already running
+            if (CurrentQuantum == quantum && !*ShmAddr < 0) // if true => there was a process already running
             {
-                StopProcess(CurrentProcess, MaxArrivalTime);
+                StopProcess(CurrentProcess);
                 CurrentProcess.RemainingTime = *ShmAddr;
                 push(&q, CurrentProcess, 0);
             }
             // switch to another process, or get the first arrived process to work
-                CurrentProcess = pop(&q);
-                // update the remaining time in the memory
-                *ShmAddr = CurrentProcess.RemainingTime;
-                // check if this is the first time to start or conitue
-                if (CurrentProcess.RemainingTime == CurrentProcess.RunTime)
-                    StartProcess(&CurrentProcess, MaxArrivalTime);
-                else
-                    ContinueProcess(CurrentProcess, MaxArrivalTime);
+            CurrentProcess = pop(&q);
+            // update the remaining time in the memory
+            *ShmAddr = CurrentProcess.RemainingTime;
+            // check if this is the first time to start or conitue
+            if (CurrentProcess.RemainingTime == CurrentProcess.RunTime)
+                StartProcess(&CurrentProcess);
+            else
+                ContinueProcess(CurrentProcess);
             CurrentQuantum = 0; // reset
         }
-        nextSecondWaiting(&last);
+        
     }
 }
 //------------------------------------------------------------------------------------------------------------------------//
@@ -202,72 +180,65 @@ void SRTN()
 
     Process CurrentProcess;
     Process *temp;
-    Node *q = NULL;
     Node *Priority_Q = NULL;
 
     int LowestRemainingTime = 0,
         condition = 0,
         flag = 0,
-        MaxArrivalTime = -1,
         counter = 0,
         last = -1;
     int ProcessesHashTime[LastArrivalTime + 1];
 
     *ShmAddr = -1;
+    CurrentProcess.LastProcess = false;
     ReceivedCounter = CountProcesses;
 
-    for (int i = 0; i <= LastArrivalTime; i++)
+    while (!(*ShmAddr == -1 && CurrentProcess.LastProcess && isEmpty(q)))
     {
-        ProcessesHashTime[i] = 0;
-    }
-
-    while (CountProcesses > 0)
-    {
-        // check if there is a process arrived
-        if (ReceivedCounter > 0)
-        {
-            ReadyProcessExist(MsgQueueId, &q, &flag, 0, &MaxArrivalTime, ProcessesHashTime);
-            ReceivedCounter -= flag;
-        }
-
         if (*ShmAddr == 0)
         {
-            FinishProcess(&CurrentProcess, ShmAddr, MaxArrivalTime);
+            FinishProcess(&CurrentProcess, ShmAddr);
             *ShmAddr = -1;
-            CountProcesses--;
-            if (CountProcesses == 0)
-            {
-                break;
-            }
+            // if (CountProcesses == 0)
+            // {
+            //     break;
+            // }
         }
 
-
-
-        if (!isEmpty(Priority_Q) )
+        if (!isEmpty(q))
         {
+            while (!isEmpty(q))
+            {
+                Process p = pop(&q);
+                printf("id : %d\n" ,p.Id_2);
+            }
+            
             // compare 
-            LowestRemainingTime = peek(Priority_Q).RemainingTime;
-             if (LowestRemainingTime < *ShmAddr) // if shared memory is -1 it will not go into it
+            LowestRemainingTime = peek(q).RemainingTime;
+            printf("Lowest:%d\n", LowestRemainingTime);
+            printf("ShmAddr:%d\n", *ShmAddr);
+            if (LowestRemainingTime < *ShmAddr) // if shared memory is -1 it will not go into it
             {
                 CurrentProcess.RemainingTime = *ShmAddr;
-                push(&Priority_Q, CurrentProcess, 2);
-                StopProcess(CurrentProcess, MaxArrivalTime);
+                push(&q, CurrentProcess, 2);
+                printf("stoppp\n");
+                StopProcess(CurrentProcess);
             }
-            CurrentProcess = pop(&Priority_Q);
-            *ShmAddr = CurrentProcess.RemainingTime ;
+            CurrentProcess = pop(&q);
+            *ShmAddr = CurrentProcess.RemainingTime;
             if (CurrentProcess.RemainingTime == CurrentProcess.RunTime)
             {
-                StartProcess(&CurrentProcess, MaxArrivalTime);
-                continue;
+                StartProcess(&CurrentProcess);
+                
             }
             else
             {
-                ContinueProcess(CurrentProcess, MaxArrivalTime);
-                continue;
+                ContinueProcess(CurrentProcess);
+                
             }
         }
         // wait until the clock changes
-       nextSecondWaiting(&last);
+        nextSecondWaiting(&last);
     }
 }
 
@@ -281,4 +252,28 @@ void clearResources(int signum)
     msgctl(MsgQueueId, IPC_RMID, (struct msqid_ds *)0);
     shmctl(SharedMemoryId, IPC_RMID, NULL);
     signal(SIGINT, SIG_DFL);
+}
+//------------------------------------------------------------------------------------------------------------------------//
+/*
+Function explaintion:-
+    This function checks if the process generator sent a process or not by SIGUSR1
+*/
+void checkRecieving(int signum)
+{
+    // start the algorithm
+    switch (chosenAlgorithm)
+    {
+    case 1:
+        ReadyProcessExist(MsgQueueId, &q, &flag, 1, &last);
+        break;
+    case 2:
+        ReadyProcessExist(MsgQueueId, &q, &flag, 2, &last);
+        break;
+    case 3:
+        ReadyProcessExist(MsgQueueId, &q, &flag, 0, &last);
+        break;
+    }
+
+    // just to confirm
+    signal(SIGUSR1, checkRecieving);
 }

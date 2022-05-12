@@ -125,20 +125,20 @@ int main(int argc, char * argv[])
     {
         time = getClk();
          
-        for (int i = 0; i < CountProcesses; i++)
+        for (int i = sendCounter; i < CountProcesses; i++)
         {
             if (AllProcesses[i].ArriavalTime == time)
             {
                 SendMsg(msgQueueId, AllProcesses[i]);
+                kill(SchedulerID, SIGUSR1);
                 sendCounter++;
                 AllProcesses[i].ArriavalTime = -1;
-            }
+            }else break;
 
-            if (i == CountProcesses-1)
-            {
-                AllProcesses[i].LastProcess = true;
-            }
+            
         }
+        while (time == getClk())
+        ;
     }
     
     // 7. Clear clock resources
