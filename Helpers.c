@@ -11,6 +11,15 @@ struct Node
 };
 typedef struct Node Node;
 
+union Semun
+{
+	int val;			   /* value for SETVAL */
+	struct semid_ds *buf;  /* buffer for IPC_STAT & IPC_SET */
+	ushort *array;		   /* array for GETALL & SETALL */
+	struct seminfo *__buf; /* buffer for IPC_INFO */
+	void *__pad;
+};
+
 /*
 Function explaintion:-
 	This function is used to push a process into the queue
@@ -55,66 +64,65 @@ void push(Node **q, Process p, int PriorityFlag) // PriorityFlag:1 ( priority is
 		}
 		else
 		{
-			if (p.ArriavalTime == (*q)->data.ArriavalTime)
+			// check priorities
+			if (p.Priority < (*q)->data.Priority)
 			{
-				// check priorities
-				if (p.Priority <= (*q)->data.Priority)
-				{
-					Node *temp = (Node *)malloc(sizeof(Node));
-					temp->data = p;
-					temp->Next = *q;
-					*q = temp;
-				}
-				else
-				{
-					Node *temp = *q;
-					Node *prev = temp;
-					while (temp != NULL && (p.ArriavalTime == temp->data.ArriavalTime && p.Priority < temp->data.Priority))
-					{
-						prev = temp;
-						temp = temp->Next;
-					}
-					Node *inserted = (Node *)malloc(sizeof(Node));
-					prev->Next = inserted;
-					inserted->Next = temp;
-				}
+				Node *temp = (Node *)malloc(sizeof(Node));
+				temp->data = p;
+				temp->Next = *q;
+				*q = temp;
 			}
-			else if (p.ArriavalTime > (*q)->data.ArriavalTime)
+			else
 			{
 				Node *temp = *q;
 				Node *prev = temp;
-
-				while (temp != NULL && p.ArriavalTime > temp->data.ArriavalTime)
+				while (temp != NULL && p.Priority >= temp->data.Priority)
 				{
 					prev = temp;
 					temp = temp->Next;
 				}
-
-				if (temp == NULL) // then, insert in the last of the queue
-				{
-					Node *inserted = (Node *)malloc(sizeof(Node));
-					inserted->data = p;
-					prev->Next = inserted;
-					inserted->Next = NULL;
-				}
-				else // check if there is a process with the same priority or not
-				{
-					while (temp != NULL && p.Priority > temp->data.Priority)
-					{
-						prev = temp;
-						temp = temp->Next;
-					}
-					// here, we got the right place to insert
-					Node *inserted = (Node *)malloc(sizeof(Node));
-					inserted->data = p;
-					prev->Next = inserted;
-					inserted->Next = temp;
-				}
+				Node *inserted = (Node *)malloc(sizeof(Node));
+				inserted->data = p;
+				prev->Next = inserted;
+				inserted->Next = temp;
 			}
+
+			// else if (p.ArriavalTime > (*q)->data.ArriavalTime)
+			// {
+			// 	Node *temp = *q;
+			// 	Node *prev = temp;
+
+			// 	while (temp != NULL && p.ArriavalTime > temp->data.ArriavalTime)
+			// 	{
+			// 		prev = temp;
+			// 		temp = temp->Next;
+			// 	}
+
+			// 	if (temp == NULL) // then, insert in the last of the queue
+			// 	{
+			// 		Node *inserted = (Node *)malloc(sizeof(Node));
+			// 		inserted->data = p;
+			// 		prev->Next = inserted;
+			// 		inserted->Next = NULL;
+			// 	}
+			// 	else // check if there is a process with the same priority or not
+			// 	{
+			// 		while (temp != NULL && p.Priority > temp->data.Priority)
+			// 		{
+			// 			prev = temp;
+			// 			temp = temp->Next;
+			// 		}
+			// 		// here, we got the right place to insert
+			// 		Node *inserted = (Node *)malloc(sizeof(Node));
+			// 		inserted->data = p;
+			// 		prev->Next = inserted;
+			// 		inserted->Next = temp;
+			// 	}
+			// }
 		}
 	}
 
-	else if(PriorityFlag == 2)		// priority is on the remaining time
+	else if (PriorityFlag == 2) // priority is on the remaining time
 	{
 		if (*q == NULL)
 		{
@@ -188,6 +196,7 @@ Process peek(Node *q)
 	// return any dummy process
 	Process p;
 	p.ArriavalTime = -1;
+	p.LastProcess = false;
 	return p;
 }
 //------------------------------------------------------------------------------------------------------------------------//
@@ -341,10 +350,10 @@ void StartProcess(Process *CurrentProcess)
 	{
 		RunAndComplie("process", NULL, NULL, NULL, NULL);
 	}
-
+	CurrentProcess->WaitingTime = getClk() - CurrentProcess->ArriavalTime;
 	fprintf(OutputFile, "At time %d process %d started arr %d total %d remain %d wait %d\n",
 			getClk(), CurrentProcess->Id_2, CurrentProcess->ArriavalTime, CurrentProcess->RunTime,
-			CurrentProcess->RunTime, getClk() - CurrentProcess->ArriavalTime);
+			CurrentProcess->RunTime, CurrentProcess->WaitingTime);
 	fclose(OutputFile);
 }
 //------------------------------------------------------------------------------------------------------------------------//
@@ -357,7 +366,7 @@ Function explaintion:-
 		3-Priority:- to determine the priority type of the passes queue
 		4-ProcessesHashTime:- An array to store the number of processes that arrived at time x, (index = x)
 */
-void ReadyProcessExist(int MsgId, Node **Queue, int *Flag, int Priority, int* last)
+void ReadyProcessExist(int MsgId, Node **Queue, int *Flag, int Priority, int *last)
 {
 
 	Process RecProcess;
@@ -365,16 +374,9 @@ void ReadyProcessExist(int MsgId, Node **Queue, int *Flag, int Priority, int* la
 
 	RecProcess = RecMsg(MsgId);
 	push(Queue, RecProcess, Priority);
-	printf("process : %d\n", RecProcess.Id_2);
-
-	// if (RecProcess.Id_2 == 1)
-	// {
-	// 	*last = -1;
-	// }
-	
+	printf("process : %d, clk:%d\n", RecProcess.Id_2, getClk());
 
 	return;
-	
 }
 //------------------------------------------------------------------------------------------------------------------------//
 /*
@@ -390,10 +392,10 @@ void FinishProcess(Process *FinishedProcess, int *ShmAddr)
 
 	int FinishTime = getClk();
 	double WTA = (getClk() - FinishedProcess->ArriavalTime) * 1.0 / FinishedProcess->RunTime;
-	int wait = (getClk() - FinishedProcess->ArriavalTime) - FinishedProcess->RunTime;
+	// int wait = (getClk() - FinishedProcess->ArriavalTime) - FinishedProcess->RunTime;
 	fprintf(OutputFile, "At time %d process %d finished arr %d total %d remain 0 wait %d TA %d WTA %.2f\n", getClk(),
 			FinishedProcess->Id_2, FinishedProcess->ArriavalTime, FinishedProcess->RunTime,
-			wait, getClk() - FinishedProcess->ArriavalTime, WTA);
+			FinishedProcess->WaitingTime, getClk() - FinishedProcess->ArriavalTime, WTA);
 
 	fclose(OutputFile);
 }
@@ -437,13 +439,12 @@ Function explaintion:-
 */
 void nextSecondWaiting(int *lastSecond)
 {
-    while (*lastSecond == getClk())
-        ;
-    *lastSecond = getClk();
+	while (*lastSecond == getClk())
+		;
+	*lastSecond = getClk();
 }
 
 //------------------------------------------------------------------------------------------------------------------------//
-
 
 //------------------------------------------------------------------------------------------------------------------------//
 /*
@@ -461,4 +462,34 @@ int comparePriorities(int First, int Second)
 		return 1;
 	else
 		return 0;
+}
+
+void down(int sem)
+{
+	struct sembuf p_op;
+
+	p_op.sem_num = 0;
+	p_op.sem_op = -1;			// it means -> i want to subtract 1 from the sem(parameter).val
+	p_op.sem_flg = !IPC_NOWAIT; // no not wait --> sleep until the semaphore value returned back to 0
+	printf("sem:%d\n", sem);
+	if (semop(sem, &p_op, 1 /* indicates that i have one operation */) == -1)
+	{
+		perror("Error in down()");
+		exit(-1);
+	}
+}
+
+void up(int sem)
+{
+	struct sembuf v_op;
+
+	v_op.sem_num = 0;
+	v_op.sem_op = 1;			// // it means -> i want to add 1 from the sem(parameter).val
+	v_op.sem_flg = !IPC_NOWAIT; // no need here
+
+	if (semop(sem, &v_op, 1) == -1)
+	{
+		perror("Error in up()");
+		exit(-1);
+	}
 }

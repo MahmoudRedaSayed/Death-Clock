@@ -36,27 +36,59 @@ int main(int argc, char * argv[])
     // store the input data
     fopen("processes.txt", "r");
     int i = 0;
+    Process input;
     while (getline(&Line, &LineSize, InputFile) != -1)
     {
-        fscanf(InputFile,"%d", &AllProcesses[i].Id_2);
-        fscanf(InputFile,"%d", &AllProcesses[i].ArriavalTime);
-        fscanf(InputFile,"%d", &AllProcesses[i].RunTime);
-        fscanf(InputFile,"%d", &AllProcesses[i].Priority);
+        // fscanf(InputFile,"%d", &AllProcesses[i].Id_2);
+        // fscanf(InputFile,"%d", &AllProcesses[i].ArriavalTime);
+        // fscanf(InputFile,"%d", &AllProcesses[i].RunTime);
+        // fscanf(InputFile,"%d", &AllProcesses[i].Priority);
+         fscanf(InputFile,"%d", &input.Id_2);
+        fscanf(InputFile,"%d", &input.ArriavalTime);
+        fscanf(InputFile,"%d", &input.RunTime);
+        
+        fscanf(InputFile,"%d", &input.Priority);
 
         AllProcesses[i].WaitingTime = 0;
         AllProcesses[i].RemainingTime = AllProcesses[i].RunTime;
         AllProcesses[i].LastProcess = false;
 
+        if (input.RunTime != 0 )
+        {
+            AllProcesses[i] = input;
+            printf("id:%d\n", AllProcesses[i].Id_2);
+        }
+        else
+        {
+            CountProcesses--;
+            continue;
+        }
+        
+        
         if (i == CountProcesses - 1)        // check if the last process or not
             {
-                AllProcesses[i].LastProcess = true;
-                LastArrialTime = AllProcesses[i].ArriavalTime;
+                input.LastProcess = true;
+                AllProcesses[i] = input;
+                // LastArrialTime = AllProcesses[i].ArriavalTime;
             }
         
         i++;
     }
     fclose(InputFile);
     
+    // // test DS
+    // Node* q = NULL;
+    // for (int i = 0; i < 10; i++)
+    // {
+    //     push(&q ,AllProcesses[i], 0);
+    // }
+    // for (int i = 0; i < 10; i++)
+    // {
+    //     Process p =pop(&q );
+    //     printf("id:%d\n", p.Id_2);
+    // }
+    // exit(-1);
+
     // 2. Ask the user for the chosen scheduling algorithm and its parameters, if there are any.
     char args[3][2];
     printf("Choose the algorithm :\n");
