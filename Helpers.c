@@ -1,7 +1,9 @@
 #include "headers.h"
-
 /******************************* Global Variables *******************************/
 FILE *OutputFile;
+FILE *MemoryOutputFile;
+double TotalWTRTime=0,TotalWaitTime=0,TotalRunTime=0;
+
 
 /******************************* Start Data Structures *******************************/
 struct Node
@@ -19,6 +21,10 @@ union Semun
 	struct seminfo *__buf; /* buffer for IPC_INFO */
 	void *__pad;
 };
+
+// memory section
+
+///////////////////////
 
 /*
 Function explaintion:-
@@ -197,6 +203,8 @@ Process peek(Node *q)
 	Process p;
 	p.ArriavalTime = -1;
 	p.LastProcess = false;
+	p.RemainingTime = -1;
+	p.Priority = 11;
 	return p;
 }
 //------------------------------------------------------------------------------------------------------------------------//
@@ -232,7 +240,7 @@ void RunAndComplie(char *FileName, char *arg_0, char *arg_1, char *arg_2, char *
 	strcat(Complie, ".c ");
 	strcat(Complie, "-o ");
 	strcat(Complie, FileName);
-	strcat(Complie, ".out");
+	strcat(Complie, ".out -lm");
 	system(Complie);
 	char FileNameOut[80];
 	strcpy(FileNameOut, FileName);
@@ -339,10 +347,12 @@ Function explaintion:-
 */
 void StartProcess(Process *CurrentProcess)
 {
-	OutputFile = fopen("scheduler.txt", "a");
 
+	OutputFile = fopen("scheduler.log", "a");
 	if (!OutputFile)
 		perror("\nCan't open the scheduler text file\n");
+
+	
 
 	CurrentProcess->Id_1 = fork();
 
@@ -359,6 +369,40 @@ void StartProcess(Process *CurrentProcess)
 //------------------------------------------------------------------------------------------------------------------------//
 /*
 Function explaintion:-
+	Function Parameters:-
+		1-CurrentProcess:- The process to be added in the memory
+*/
+void MemoryAllocate(Process *CurrentProcess)
+{
+
+	MemoryOutputFile = fopen("Memory.log", "a");
+	if (!MemoryOutputFile)
+		perror("\nCan't open the scheduler text file\n");
+	fprintf(MemoryOutputFile,"At time %d allocated %d bytes for process %d from %d to %d\n",
+	getClk(), CurrentProcess->nominalSize, CurrentProcess->Id_2, CurrentProcess->startIndex, CurrentProcess->startIndex + CurrentProcess->actualSize - 1);
+	
+	fclose(MemoryOutputFile);
+}
+
+/*
+Function explaintion:-
+	Function Parameters:-
+		1-CurrentProcess:- The process to be added in the memory
+*/
+void MemoryDeallocate(Process *CurrentProcess)
+{
+
+	MemoryOutputFile = fopen("Memory.log", "a");
+	if (!MemoryOutputFile)
+		perror("\nCan't open the scheduler text file\n");
+	fprintf(MemoryOutputFile,"At time %d freed %d bytes for process %d from %d to %d\n",
+	getClk(), CurrentProcess->nominalSize, CurrentProcess->Id_2, CurrentProcess->startIndex, CurrentProcess->startIndex + CurrentProcess->actualSize - 1);
+	
+	fclose(MemoryOutputFile);
+}
+
+/*
+Function explaintion:-
 	This function checks if a new process is sent, reveive it, and push it in the ready queue
 	Function Parameters:-
 		1-Queue:- The ready queue ( for the ready processes )
@@ -366,17 +410,21 @@ Function explaintion:-
 		3-Priority:- to determine the priority type of the passes queue
 		4-ProcessesHashTime:- An array to store the number of processes that arrived at time x, (index = x)
 */
-void ReadyProcessExist(int MsgId, Node **Queue, int *Flag, int Priority, int *last)
+void ReadyProcessExist(int MsgId, Node **Queue, int *Flag, int Priority, int *last, int *CountProcesses)
 {
 
 	Process RecProcess;
 	int index;
-
 	RecProcess = RecMsg(MsgId);
-	push(Queue, RecProcess, Priority);
-	printf("process : %d, clk:%d\n", RecProcess.Id_2, getClk());
-
-	return;
+	RecProcess.WaitingTime = 0;
+	while (RecProcess.ArriavalTime != -1)
+	{	
+		(*CountProcesses)+=1;
+		// RecProcess.RemainingTime = RecProcess.RunTime;
+		push(Queue, RecProcess, Priority);
+		printf("\nprocess : %d, received at clk:%d\n", RecProcess.Id_2, getClk());
+		RecProcess = RecMsg(MsgId);
+	}
 }
 //------------------------------------------------------------------------------------------------------------------------//
 /*
@@ -388,15 +436,20 @@ Function explaintion:-
 */
 void FinishProcess(Process *FinishedProcess, int *ShmAddr)
 {
-	OutputFile = fopen("scheduler.txt", "a");
+	MemoryDeallocate(FinishedProcess);
+	OutputFile = fopen("scheduler.log", "a");
 
 	int FinishTime = getClk();
+	// double WTA = (getClk() - FinishedProcess->ArriavalTime) * 1.0 / FinishedProcess->RunTime;
 	double WTA = (getClk() - FinishedProcess->ArriavalTime) * 1.0 / FinishedProcess->RunTime;
+	TotalWTRTime+=WTA;
+	TotalWaitTime+=FinishedProcess->WaitingTime;
+	TotalRunTime+=FinishedProcess->RunTime;
 	// int wait = (getClk() - FinishedProcess->ArriavalTime) - FinishedProcess->RunTime;
 	fprintf(OutputFile, "At time %d process %d finished arr %d total %d remain 0 wait %d TA %d WTA %.2f\n", getClk(),
 			FinishedProcess->Id_2, FinishedProcess->ArriavalTime, FinishedProcess->RunTime,
 			FinishedProcess->WaitingTime, getClk() - FinishedProcess->ArriavalTime, WTA);
-
+	FinishedProcess->WTA = WTA;
 	fclose(OutputFile);
 }
 //------------------------------------------------------------------------------------------------------------------------//
@@ -407,13 +460,14 @@ Function explaintion:-
 	Function Parameters:-
 		1-p:- The process that want to be terminated
 */
-void StopProcess(Process p)
+void StopProcess(Process *p)
 {
-	OutputFile = fopen("scheduler.txt", "a");
-	kill(p.Id_1, SIGSTOP);
-
+	OutputFile = fopen("scheduler.log", "a");
+	p->LastStop=getClk();
+	kill(p->Id_1, SIGSTOP);
+	printf("lastStop in stop function = %d\n", p->LastStop);
 	fprintf(OutputFile, "At time %d process %d stopped arr %d total %d remain %d\n", getClk(),
-			p.Id_2, p.ArriavalTime, p.RunTime, p.RemainingTime);
+			p->Id_2, p->ArriavalTime, p->RunTime, p->RemainingTime);
 	fclose(OutputFile);
 }
 //------------------------------------------------------------------------------------------------------------------------//
@@ -424,12 +478,14 @@ Function explaintion:-
 	Function Parameters:-
 		1-p:- The process that want to be resumed
 */
-void ContinueProcess(Process p)
+void ContinueProcess(Process *p)
 {
-	OutputFile = fopen("scheduler.txt", "a");
-	kill(p.Id_1, SIGCONT);
-	fprintf(OutputFile, "At time %d process %d resumed arr %d total %d remain %d\n", getClk(),
-			p.Id_2, p.ArriavalTime, p.RunTime, p.RemainingTime);
+	OutputFile = fopen("scheduler.log", "a");
+	kill(p->Id_1, SIGCONT);
+	p->WaitingTime+=getClk()-p->LastStop - 1;
+	printf("lastStop = %d\n", p->LastStop);
+	fprintf(OutputFile, "At time %d process %d resumed arr %d total %d remain %d wait %d\n", getClk(),
+			p->Id_2, p->ArriavalTime, p->RunTime, p->RemainingTime,(getClk()-p->LastStop) -1);
 	fclose(OutputFile);
 }
 //------------------------------------------------------------------------------------------------------------------------//
@@ -479,17 +535,33 @@ void down(int sem)
 	}
 }
 
-void up(int sem)
+
+/*Function explaintion:-
+	This function to make the file scheduler.pref
+	Function Parameters:-
+		1-ProcessCount:- The number of the processes
+*/
+void SchedulerPref(int ProcessCount, int ClockAtFinishing, double std)
+{printf("count %d\n", ProcessCount);
+
+	OutputFile = fopen("scheduler.pref", "w");
+	double AGVWTR=TotalWTRTime/ProcessCount;
+	double AGVWaiting=TotalWaitTime/ProcessCount;
+	double CPUUtilaization=(TotalRunTime/ClockAtFinishing)*100;
+	printf("AGVWTR %f\n", AGVWTR);
+	printf("AGVWaiting %f\n", AGVWaiting);
+	fprintf(OutputFile, "CPU Utilization = %.2f %c\nAVGWait = %.2f\nAVGWTA = %.2f\nstdWTA = %.2f\n",CPUUtilaization,'%',AGVWaiting,
+			AGVWTR, std);
+	fclose(OutputFile);
+}
+
+void printFirstLineInFile()
 {
-	struct sembuf v_op;
+	OutputFile = fopen("scheduler.log", "w");
+	fprintf(OutputFile,"#At time x Process y state arr w total z remain y wait k\n");
+	fclose(OutputFile);
 
-	v_op.sem_num = 0;
-	v_op.sem_op = 1;			// // it means -> i want to add 1 from the sem(parameter).val
-	v_op.sem_flg = !IPC_NOWAIT; // no need here
-
-	if (semop(sem, &v_op, 1) == -1)
-	{
-		perror("Error in up()");
-		exit(-1);
-	}
+	OutputFile = fopen("Memory.log", "w");
+	fprintf(OutputFile,"#At time x allocated y bytes for process z from i to j\n");
+	fclose(OutputFile);
 }

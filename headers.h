@@ -14,6 +14,9 @@
 #include <assert.h>
 #include <string.h>
 #include <stdbool.h>
+
+
+
 #define true 1
 #define false 0
 #define SHKEY 300
@@ -34,7 +37,12 @@ struct Process
         RunTime,
         WaitingTime,
         RemainingTime,
-        Priority;
+        Priority,
+        actualSize,
+        nominalSize,
+        startIndex,
+        LastStop;
+    double WTA;
     bool LastProcess;
 };
 typedef struct Process Process;

@@ -1,25 +1,31 @@
 #include "Helpers.c"
+#include <math.h>
 /******************************* Global Variables *******************************/
 int MsgQueueId,
     SharedMemoryId,
     SharedMemoryId2,
     CountProcesses,
-    LastArrivalTime,
-    ReceivedCounter,
     flag,
-    last;
-chosenAlgorithm;
+    NumOfProcesses,
+    ClockAtFinishing;
+last,
+    chosenAlgorithm;
 int *ShmAddr;
 int *ShmAddr2;
-bool LastProcess;
-Node *q = NULL;
+Node *WaitingQueue = NULL; // waiting queue
+Node *processesWTA = NULL;
+Node *ReadyQueue = NULL; // Processes that are currently running, and we push in it when memory can hold it.
 
 void clearResources(int);
 void checkRecieving(int signum);
+double calculateSD(Node **head);
 
 int main(int argc, char *argv[])
 {
+    ClockAtFinishing = 0; // initialization
     initClk();
+    buddyInit();
+    printFirstLineInFile();
     signal(SIGINT, clearResources); // upon termination release the clock resources.
     signal(SIGUSR1, checkRecieving);
 
@@ -30,12 +36,9 @@ int main(int argc, char *argv[])
     ShmAddr2 = InitShm('n', &SharedMemoryId2);
     chosenAlgorithm = atoi(argv[1]);
 
-    int quantum = atoi(argv[2]),
-        NumOfProcesses = atoi(argv[3]);
-    LastArrivalTime = atoi(argv[4]);
-
-    CountProcesses = NumOfProcesses;
-
+    int quantum = atoi(argv[2]);
+    NumOfProcesses = 0;
+    CountProcesses = 0;
     // start the algorithm
     switch (chosenAlgorithm)
     {
@@ -48,13 +51,19 @@ int main(int argc, char *argv[])
     case 3:
         RoundRobin(quantum);
         break;
+    case 4:
+        FCFS();
+        break;
+    case 5:
+        HPFP();
+        break;
     }
-
     destroyClk(true);
 }
 
 //------------------------------------------------------------------------------------------------------------------------//
 /*
+
 Function explaintion:-
     This function is the implementation of the Highest Priority First Algorithm,
     it selects the highest priority process of the ready queue and start it until it is finished,
@@ -65,81 +74,52 @@ void HPF()
     printf("Start HPF Algo\n");
 
     Process CurrentProcess;
-
     last = -1;
     int timeConsume = 0;
     int flag = 1, flag2 = 1;
 
-    ReceivedCounter = CountProcesses;
     CurrentProcess.LastProcess = false; // to enter the first iteration of the next loop
     *ShmAddr = -1;
     *ShmAddr2 = 0;
-    union Semun semun;
-    int sem1 = semget('m', 1, 0666 | IPC_CREAT);
-    sem1 = 0;
-    semun.val = 0;                                         /* initial value of the semaphore, Binary semaphore */
-    if (semctl(sem1, /* semnum */ 0, SETVAL, semun) == -1) // semnum = 0, because we have only one here so it is the first index
-                                                           // and this is just initialization
-    {
-        perror("Error in semctl");
-        exit(-1);
-    }
 
-    while (!(*ShmAddr == -1 && CurrentProcess.LastProcess))
+    while (*ShmAddr == -1 || CountProcesses > 0)
     {
-        // last = getClk();
-        // printf("shmaddr:%d, clk : %d\n", *ShmAddr, last);
+        traverseQueue(&WaitingQueue, &ReadyQueue, 1);
         if (*ShmAddr2 == 1 || flag == 1)
         {
+            flag2 = 1;
             if (*ShmAddr == 0)
             {
+                deallocate(CurrentProcess.startIndex, CurrentProcess.nominalSize);
                 FinishProcess(&CurrentProcess, ShmAddr);
-                printf("After Finish :clock:%d, shmaddr:%d\n", getClk(), *ShmAddr);
+                push(&processesWTA, CurrentProcess, 0);
+                ClockAtFinishing = getClk();
+                traverseQueue(&WaitingQueue, &ReadyQueue, 1);
+                NumOfProcesses++;
+                CountProcesses--;
                 *ShmAddr = -1;
                 flag = 0;
-                flag2 = 0;
-                // up(sem1);
                 *ShmAddr2 = 0;
                 flag++;
                 flag2 = 0;
+                CurrentProcess.LastProcess = false;
                 last = getClk();
                 nextSecondWaiting(&last);
             }
 
-            // wait until the clock changes
-            // nextSecondWaiting(&last);
-            if (flag2 = 1)
+            if (flag2 == 1)
             {
-                if (*ShmAddr == -1 && !isEmpty(q))
+                if (*ShmAddr == -1 && !isEmpty(ReadyQueue))
                 {
                     // pop a new process to run it
-                    CurrentProcess = pop(&q);
+                    CurrentProcess = pop(&ReadyQueue);
                     *ShmAddr = CurrentProcess.RunTime;
-                    printf("clock:%d, shmaddr:%d\n", getClk(), *ShmAddr);
+                    traverseQueue(&WaitingQueue, &ReadyQueue, 1);
                     StartProcess(&CurrentProcess);
                     flag += 1;
                 }
             }
         }
-
-        // if (*ShmAddr == 0)
-        // {
-        //     FinishProcess(&CurrentProcess, ShmAddr);
-        //     printf("After Finish :clock:%d, shmaddr:%d\n", getClk(), *ShmAddr);
-        //     *ShmAddr = -1;
-        // }
-
-        // wait until the clock changes
-        // nextSecondWaiting(&last);
-
-        // if (*ShmAddr == -1 && !isEmpty(q))
-        // {
-        //     // pop a new process to run it
-        //     CurrentProcess = pop(&q);
-        //     *ShmAddr = CurrentProcess.RunTime;
-        //     printf("clock:%d, shmaddr:%d\n", getClk(), *ShmAddr);
-        //     StartProcess(&CurrentProcess);
-        // }
     }
 }
 //------------------------------------------------------------------------------------------------------------------------//
@@ -157,81 +137,84 @@ void RoundRobin(int quantum)
     Process CurrentProcess;
 
     int CurrentQuantum = 0,
-        index = 0,
         flag = 1,
-        x = 0,
-        var = 0,
-        last = -1,
-        flag3 = 0,
-        ProcessesHashTime[LastArrivalTime];
+        last = -1;
 
     *ShmAddr = -1;
-    *ShmAddr2 == 1 ;
-    ReceivedCounter = CountProcesses;
+    *ShmAddr2 == 1;
     CurrentProcess.RemainingTime = -2; // to prevent it enter the block of code that finishes the process in the start
-
+    CurrentProcess.LastProcess = false;
     last = -1;
-    while (!(*ShmAddr == -1 && CurrentProcess.LastProcess && isEmpty(q)))
+    while (*ShmAddr == -1 || CountProcesses > 0)
     {
-        if(*ShmAddr2 == 1 || flag == 1)
-        {
-            *ShmAddr2=0;
-            CurrentQuantum++;
-        // check whether the current process is finished or not
-        if (*ShmAddr == 0)
-        {
-            FinishProcess(&CurrentProcess, ShmAddr);
-            if (isEmpty(q))
-                {
-                    flag3 = 1;
-                }
-            *ShmAddr = -1;
-            CurrentQuantum = 0; // reset
-            last=getClk();
-        nextSecondWaiting(&last);
-        }
+        traverseQueue(&WaitingQueue, &ReadyQueue, 0);
 
-        // if the quantum is over ==> switch to another process if any
-        // the condition (*ShmAddr <= 0 || CurrentQuantum == 0)
-        // *ShmAddr <= 0  => to manage the finished process
-        // CurrentQuantum == 0 => to manage the stopped process and it possible to be done in the finished process also
-        if ((*ShmAddr < 0 || CurrentQuantum == quantum))
+        if (*ShmAddr2 == 1 || flag == 1)
         {
-            // The condition (CurrentQuantum == quantum && !*ShmAddr<= 0)
-            // CurrentQuantum == quantum && !*ShmAddr<= 0 => to make sure that doesn't come from the finish part
-            // that the value of the share memory will not be equal zero and this process will be stopped
-            if (CurrentQuantum == quantum && !(*ShmAddr < 0)) // if true => there was a process already running
+            *ShmAddr2 = 0;
+            CurrentQuantum++;
+            // check whether the current process is finished or not
+            if (*ShmAddr == 0)
             {
-                StopProcess(CurrentProcess);
-                CurrentProcess.RemainingTime = *ShmAddr;
-                printf("Process :%d,remining:%d\n", CurrentProcess.Id_2, *ShmAddr);
-                push(&q, CurrentProcess, 0);
-                last=getClk();
+                deallocate(CurrentProcess.startIndex, CurrentProcess.nominalSize);
+                FinishProcess(&CurrentProcess, ShmAddr);
+                push(&processesWTA, CurrentProcess, 0);
+                ClockAtFinishing = getClk();
+                NumOfProcesses++;
+                CountProcesses--;
+                if (isEmpty(ReadyQueue))
+                {
+                    flag = 1;
+                }
+                *ShmAddr = -1;
+                CurrentQuantum = 0; // reset
+                last = getClk();
                 nextSecondWaiting(&last);
             }
-            // switch to another process, or get the first arrived process to work
-            if (!isEmpty(q))
+
+            // if the quantum is over ==> switch to another process if any
+            // the condition (*ShmAddr <= 0 || CurrentQuantum == 0)
+            // *ShmAddr <= 0  => to manage the finished process
+            // CurrentQuantum == 0 => to manage the stopped process and it possible to be done in the finished process also
+            if ((*ShmAddr < 0 || CurrentQuantum == quantum))
             {
-                CurrentProcess = pop(&q);
-            // update the remaining time in the memory
-            *ShmAddr = CurrentProcess.RemainingTime;
-            // check if this is the first time to start or conitue
-            if (CurrentProcess.RemainingTime == CurrentProcess.RunTime)
-            {
-                StartProcess(&CurrentProcess);
-                flag3 = 0;
-                flag++;
-                printf("Process : %d, shmaddr:%d\n", CurrentProcess.Id_2, *ShmAddr);
+                // The condition (CurrentQuantum == quantum && !*ShmAddr<= 0)
+                // CurrentQuantum == quantum && !*ShmAddr<= 0 => to make sure that doesn't come from the finish part
+                // that the value of the share memory will not be equal zero and this process will be stopped
+                if (CurrentQuantum == quantum && !(*ShmAddr < 0)) // if true => there was a process already running
+                {
+                    if (isEmpty(ReadyQueue))
+                        CurrentQuantum = 0;
+                    if (!isEmpty(ReadyQueue))
+                    {
+                        CurrentProcess.RemainingTime = *ShmAddr;
+                        StopProcess(&CurrentProcess);
+                        push(&ReadyQueue, CurrentProcess, 0);
+                    }
+                    last = getClk();
+                    nextSecondWaiting(&last);
+                }
+
+                // switch to another process, or get the first arrived process to work
+                if (!isEmpty(ReadyQueue))
+                {
+                    CurrentProcess = pop(&ReadyQueue);
+                    // update the remaining time in the memory
+                    *ShmAddr = CurrentProcess.RemainingTime;
+
+                    // check if this is the first time to start or conitue
+                    if (CurrentProcess.RemainingTime == CurrentProcess.RunTime)
+                    {
+                        StartProcess(&CurrentProcess);
+                        flag++;
+                    }
+                    else
+                    {
+                        ContinueProcess(&CurrentProcess);
+                    }
+                    CurrentQuantum = 0; // reset
+                }
             }
-            else
-            {
-                ContinueProcess(CurrentProcess);
-            }
-            CurrentQuantum = 0; // reset
-            }
-            
-            
-        }
         }
     }
 }
@@ -247,56 +230,50 @@ void SRTN()
     printf("SRTN starts\n");
 
     Process CurrentProcess;
-    Process *temp;
-    Node *Priority_Q = NULL;
     *ShmAddr2 == 1;
 
     int LowestRemainingTime = 0,
-        condition = 0,
         flag = 1,
-        counter = 0,
-        last = -1,
-        flag3 = 0;
-    int ProcessesHashTime[LastArrivalTime + 1];
+        last = -1;
 
     *ShmAddr = -1;
     CurrentProcess.LastProcess = false;
-    ReceivedCounter = CountProcesses;
 
-    while (!(*ShmAddr == -1 && CurrentProcess.LastProcess && isEmpty(q)))
+    while (*ShmAddr == -1 || CountProcesses > 0)
     {
-        if (*ShmAddr2 == 1 || flag == 1 || peek(q).LastProcess || flag3 == 1)
+        traverseQueue(&WaitingQueue, &ReadyQueue, 2);
+        if (*ShmAddr2 == 1 || flag == 1)
         {
             *ShmAddr2 = 0;
             if (*ShmAddr == 0)
             {
+                deallocate(CurrentProcess.startIndex, CurrentProcess.nominalSize);
                 FinishProcess(&CurrentProcess, ShmAddr);
-                if (isEmpty(q))
+                push(&processesWTA, CurrentProcess, 0);
+                ClockAtFinishing = getClk();
+                traverseQueue(&WaitingQueue, &ReadyQueue, 2);
+                flag++;
+                if (isEmpty(ReadyQueue))
                 {
-                    flag3 = 1;
+                    flag = 1;
                 }
 
+                NumOfProcesses++;
+                CountProcesses--;
                 *ShmAddr = -1;
                 last = getClk();
                 nextSecondWaiting(&last);
-                flag++;
-                printf("shmaddr2:%d\n", *ShmAddr2);
             }
 
-            // wait until the clock changes
-
-            if (!isEmpty(q))
+            if (!isEmpty(ReadyQueue))
             {
                 // compare
-                LowestRemainingTime = peek(q).RemainingTime;
-                // printf("Lowest:%d, clk:%d \n", LowestRemainingTime, getClk());
-                // printf("ShmAddr:%d\n", *ShmAddr);
-                if (LowestRemainingTime < *ShmAddr) // if shared memory is -1 it will not go into it
+                LowestRemainingTime = peek(ReadyQueue).RemainingTime;
+                if (LowestRemainingTime < *ShmAddr && LowestRemainingTime != -1) // if shared memory is -1 it will not go into it
                 {
                     CurrentProcess.RemainingTime = *ShmAddr;
-                    push(&q, CurrentProcess, 2);
-                    printf("stoppp\n");
-                    StopProcess(CurrentProcess);
+                    StopProcess(&CurrentProcess);
+                    push(&ReadyQueue, CurrentProcess, 2);
                     last = getClk();
                     nextSecondWaiting(&last);
                     *ShmAddr = -1;
@@ -304,17 +281,17 @@ void SRTN()
 
                 if (*ShmAddr == -1)
                 {
-                    CurrentProcess = pop(&q);
+                    CurrentProcess = pop(&ReadyQueue);
                     *ShmAddr = CurrentProcess.RemainingTime;
                     if (CurrentProcess.RemainingTime == CurrentProcess.RunTime)
                     {
+                        traverseQueue(&WaitingQueue, &ReadyQueue, 2);
                         StartProcess(&CurrentProcess);
-                        flag3 = 0;
                         flag++;
                     }
                     else
                     {
-                        ContinueProcess(CurrentProcess);
+                        ContinueProcess(&CurrentProcess);
                     }
                 }
             }
@@ -323,12 +300,161 @@ void SRTN()
 }
 
 //------------------------------------------------------------------------------------------------------------------------//
+
+/*Function explaintion:-
+    This function is the implementation of the Highest Priority First Algorithm,
+    it selects the highest priority process of the ready queue and start it until it is finished,
+    takes the next highest priority and so on ....
+*/
+void FCFS()
+{
+    printf("Start FCFS Algo\n");
+
+    Process CurrentProcess;
+    last = -1;
+    int flag = 1, flag2 = 1;
+
+    CurrentProcess.LastProcess = false; // to enter the first iteration of the next loop
+    *ShmAddr = -1;
+    *ShmAddr2 = 0;
+
+    while (*ShmAddr == -1 || CountProcesses > 0)
+    {
+        traverseQueue(&WaitingQueue, &ReadyQueue, 0);
+        if (*ShmAddr2 == 1 || flag == 1)
+        {
+            flag2 = 1;
+            if (*ShmAddr == 0)
+            {
+                deallocate(CurrentProcess.startIndex, CurrentProcess.nominalSize);
+                FinishProcess(&CurrentProcess, ShmAddr);
+                push(&processesWTA, CurrentProcess, 0);
+                ClockAtFinishing = getClk();
+                traverseQueue(&WaitingQueue, &ReadyQueue, 0);
+                NumOfProcesses++;
+                CountProcesses--;
+                *ShmAddr = -1;
+                flag = 0;
+                *ShmAddr2 = 0;
+                flag++;
+                flag2 = 0;
+                CurrentProcess.LastProcess = false;
+                last = getClk();
+                nextSecondWaiting(&last);
+
+                if (isEmpty(ReadyQueue))
+                {
+                    flag = 1;
+                }
+            }
+
+            if (flag2 == 1)
+            {
+                if (*ShmAddr == -1 && !isEmpty(ReadyQueue))
+                {
+                    // pop a new process to run it
+                    CurrentProcess = pop(&ReadyQueue);
+                    *ShmAddr = CurrentProcess.RunTime;
+                    traverseQueue(&WaitingQueue, &ReadyQueue, 0);
+                    StartProcess(&CurrentProcess);
+                    flag += 1;
+                }
+            }
+        }
+    }
+}
+//------------------------------------------------------------------------------------------------------------------------//
+
+/*
+Function explaintion:-
+    This function is the implementation of the Shortest Remaining Time Next Algorithm,
+    This Algorithm is the preemptive version of SJF scheduling.
+    At the arrival of every process, the schedules select the process with the least remaining burst time among the list of available processes and the running process.
+*/
+
+void HPFP()
+{
+    printf("HPFP starts\n");
+
+    Process CurrentProcess;
+    *ShmAddr2 == 1;
+
+    int LowestPriority = 0,
+        flag = 1,
+        last = -1;
+
+    *ShmAddr = -1;
+    CurrentProcess.LastProcess = false;
+    CurrentProcess.Priority = -1;
+
+    while (*ShmAddr == -1 || CountProcesses > 0)
+    {
+        traverseQueue(&WaitingQueue, &ReadyQueue, 1);
+        if (*ShmAddr2 == 1 || flag == 1)
+        {
+            *ShmAddr2 = 0;
+            if (*ShmAddr == 0)
+            {
+                deallocate(CurrentProcess.startIndex, CurrentProcess.nominalSize);
+                FinishProcess(&CurrentProcess, ShmAddr);
+                push(&processesWTA, CurrentProcess, 0);
+                ClockAtFinishing = getClk();
+                CurrentProcess.Priority = -1;
+                traverseQueue(&WaitingQueue, &ReadyQueue, 1);
+                flag++;
+                if (isEmpty(ReadyQueue))
+                {
+                    flag = 1;
+                }
+                NumOfProcesses++;
+                CountProcesses--;
+                *ShmAddr = -1;
+                last = getClk();
+                nextSecondWaiting(&last);
+            }
+            if (!isEmpty(ReadyQueue))
+            {
+                // compare
+                LowestPriority = peek(ReadyQueue).Priority;
+                if (LowestPriority < CurrentProcess.Priority && LowestPriority != 11) // if shared memory is -1 it will not go into it
+                {
+                    CurrentProcess.RemainingTime = *ShmAddr;
+                    StopProcess(&CurrentProcess);
+                    push(&ReadyQueue, CurrentProcess, 1);
+                    last = getClk();
+                    nextSecondWaiting(&last);
+                    *ShmAddr = -1;
+                }
+
+                if (*ShmAddr == -1)
+                {
+                    CurrentProcess = pop(&ReadyQueue);
+                    *ShmAddr = CurrentProcess.RemainingTime;
+                    if (CurrentProcess.RemainingTime == CurrentProcess.RunTime)
+                    {
+                        traverseQueue(&WaitingQueue, &ReadyQueue, 1);
+                        StartProcess(&CurrentProcess);
+                        flag++;
+                    }
+                    else
+                    {
+                        ContinueProcess(&CurrentProcess);
+                    }
+                }
+            }
+        }
+    }
+}
+
 /*
 Function explaintion:-
     This function clears the resources
 */
 void clearResources(int signum)
 {
+    double std = 0.0;
+    std = calculateSD(&processesWTA);
+    SchedulerPref(NumOfProcesses, ClockAtFinishing, std);
     msgctl(MsgQueueId, IPC_RMID, (struct msqid_ds *)0);
     shmctl(SharedMemoryId, IPC_RMID, NULL);
     signal(SIGINT, SIG_DFL);
@@ -344,18 +470,494 @@ void checkRecieving(int signum)
     switch (chosenAlgorithm)
     {
     case 1:
-        ReadyProcessExist(MsgQueueId, &q, &flag, 1, &last);
+        ReadyProcessExist(MsgQueueId, &WaitingQueue, &flag, 1, &last, &CountProcesses);
         break;
     case 2:
-        ReadyProcessExist(MsgQueueId, &q, &flag, 2, &last);
-        // int x = peek(q).RemainingTime;
-        // printf("LowestRecv: %d\n", x);
+        ReadyProcessExist(MsgQueueId, &WaitingQueue, &flag, 2, &last, &CountProcesses);
         break;
     case 3:
-        ReadyProcessExist(MsgQueueId, &q, &flag, 0, &last);
+        ReadyProcessExist(MsgQueueId, &WaitingQueue, &flag, 0, &last, &CountProcesses);
+        break;
+    case 4:
+        ReadyProcessExist(MsgQueueId, &WaitingQueue, &flag, 0, &last, &CountProcesses);
+        break;
+    case 5:
+        ReadyProcessExist(MsgQueueId, &WaitingQueue, &flag, 1, &last, &CountProcesses);
         break;
     }
-
     // just to confirm
     signal(SIGUSR1, checkRecieving);
+}
+
+struct nodesorted
+{
+    int data;
+    struct nodesorted *next;
+};
+typedef struct nodesorted NODE;
+
+struct linkedList
+{
+    NODE *head;
+    int size;
+};
+
+/* linked list functions */
+
+struct linkedList *creatLinkedList()
+{
+    struct linkedList *ll = (struct linkedList *)malloc(sizeof(struct linkedList));
+    ll->head = NULL;
+    ll->size = 0;
+    return ll;
+}
+
+void InsertOrdered(struct linkedList *ll, int data)
+{
+    NODE *newnode;
+    newnode = (NODE *)malloc(sizeof(NODE));
+    newnode->data = data;
+    // printf("newNode data : %d", newnode->data);
+    // if it is the first node
+    if (ll->size == 0)
+    {
+        ll->head = newnode;
+        ll->head->next = NULL;
+        ll->size++;
+        return;
+    }
+
+    NODE *head = ll->head;
+    NODE *previous = NULL;
+    NODE *current = head;
+    while (current != NULL && data > current->data)
+    {
+        previous = current;
+        current = current->next;
+    }
+    // then the new element should be the head
+    if (previous == NULL)
+    {
+        ll->head = newnode;
+        newnode->next = current;
+    }
+    else
+    {
+        previous->next = newnode;
+        newnode->next = current;
+    }
+    ll->size++;
+}
+
+int DeleteNode(struct linkedList *ll, int data)
+{
+    if (ll->size == 0)
+    {
+        return 0;
+    }
+    NODE *head = ll->head;
+    NODE *previous = NULL;
+    NODE *current = head;
+    while (current != NULL && current->data != data)
+    {
+        previous = current;
+        current = current->next;
+    }
+    if (current != NULL) /* if list empty or data not found */
+    {
+        if (current == head)
+        {
+            ll->head = current->next;
+        }
+        else
+        {
+            previous->next = current->next;
+        }
+        free(current);
+        ll->size--;
+        if (ll->size == 0)
+        {
+            ll->head = NULL;
+        }
+        return 1;
+    }
+    else
+        return 0;
+}
+
+void Traverse(struct linkedList *ll)
+{
+    NODE *head = ll->head;
+    // printf("head data : %d", head->data);
+    NODE *current = head;
+    while (current != NULL)
+    {
+        printf(" (%d) - ", current->data);
+        current = current->next;
+    }
+}
+
+int findNode(struct linkedList *ll, int data)
+{
+    if (ll->size == 0)
+    {
+        return 0;
+    }
+    NODE *head = ll->head;
+    NODE *previous = NULL;
+    NODE *current = head;
+    while (current != NULL && current->data != data)
+    {
+        previous = current;
+        current = current->next;
+    }
+    if (current != NULL)
+        return 1;
+    else
+        return 0;
+}
+
+int isempty(struct linkedList *ll)
+{
+    return (ll->size == 0);
+}
+
+/////////////  memory section /////////////
+struct linkedList *freeList[11];
+
+void buddyInit()
+{
+    // Create Lists to hold starting indeces of blocks of that size (2^i)
+    // Where i is the index of that linked list in the Free List
+    for (int i = 3; i <= 10; i++)
+    {
+        freeList[i] = creatLinkedList();
+    }
+    // Store the largest Portion of memory (RAW, not used at all)
+    InsertOrdered(freeList[10], 0);
+}
+
+void splitMemory(int blockSize, int startIndex)
+{
+    // First StartIndex
+    int insertElement = startIndex + blockSize / 2;
+
+    // Index of the list to insert the split memory in
+    int insertIndex = ceil(log2(blockSize)) - 1;
+
+    printf("%f\n", log2(blockSize));
+    printf("First Insert Index in split: %d \n", insertIndex);
+
+    // Store right child
+    InsertOrdered(freeList[insertIndex], insertElement);
+
+    // Second StartIndex which can be further split
+    insertElement = startIndex;
+
+    printf("First Insert Index in split: %d \n", insertIndex);
+    // Store left child
+    InsertOrdered(freeList[insertIndex], insertElement);
+
+    // Delete Parent
+    DeleteNode(freeList[insertIndex + 1], startIndex);
+}
+
+// Return process.startIndex if it's not -1
+int allocate(int size)
+{
+    int firstNONEmptyIndex = 11;
+
+    int requiredPower = ceil(log2(size));
+    if (requiredPower < 3)
+    {
+        requiredPower = 3;
+    }
+    int splitCount = requiredPower;
+
+    // To get the first Non Empty list, to start splitting from
+    for (int i = requiredPower; i <= 10; i++)
+    {
+        if (freeList[i] && isempty(freeList[i]))
+        {
+            splitCount++;
+        }
+        else
+        {
+            firstNONEmptyIndex = i;
+            break;
+        }
+    }
+    // No match At all (Should Insert in Waiting Queue)   [In Scheduler]
+    if (firstNONEmptyIndex == 11)
+    {
+        printf("\nFailed to Allocate memory for process with size: %d\n", (int)pow(2, requiredPower));
+        return -1;
+    }
+
+    ////////////////////////////////////That Section will probably be deleted./////////////////////////////////////////////////////////
+    // Exact Fit, no need for Loop (Can Do It With Loop Probably in Else Condition {will not enter loop and thus execute the section below})
+    else if (firstNONEmptyIndex == requiredPower)
+    {
+        int startIndex = freeList[requiredPower]->head->data;
+        DeleteNode(freeList[requiredPower], startIndex);
+
+        printf("\nAllocated %d bytes from memory from Index %d, till %d\n", (int)pow(2, requiredPower), startIndex, (int)pow(2, requiredPower) + startIndex - 1);
+        // To be Stored in process.startIndex
+        //[Together with process.actualSize will make us not need map for indexes and sizes]
+        return startIndex;
+    }
+    ///////////////////////////////////////Till Here////////////////////////////////////////////////////////////////
+
+    // Loop Till we Reach the size we want
+    else
+    {
+        for (int i = splitCount; i > requiredPower; i--)
+        {
+            printf("%d \n", i);
+            int startIndex = freeList[i]->head->data;
+            int splitSize = pow(2, i);
+            printf("%d \n", i);
+            printf("size: %d \n", splitSize);
+            printf("startIndex: %d \n", startIndex);
+            splitMemory(splitSize, startIndex);
+
+            // To get the list to split from, next time
+            // i--;
+        }
+
+        // delete Node from free list and return the start index to be stored in process.startIndex
+        printf("Hassan\n");
+        printf("DATA: %d\n", freeList[requiredPower]->head->data);
+        int startIndex = freeList[requiredPower]->head->data;
+        DeleteNode(freeList[requiredPower], startIndex);
+
+        printf("\nAllocated %d bytes from memory from Index %d, till %d\n", (int)pow(2, requiredPower), startIndex, (int)pow(2, requiredPower) + startIndex - 1);
+        return startIndex;
+    }
+}
+
+// Gets Actual size of Process, and its startIndex
+// process.memSize should have the actual size not the given one in file??
+//(or can have another data member process.actualSize and send this to deallocate)
+void deallocate(int startIndex, int size)
+{
+    printBuddyMem();
+    int isEven = 0;
+    int insertIndex = ceil(log2(size));
+    if (insertIndex < 3)
+    {
+        insertIndex = 3;
+    }
+    size = (int)pow(2, insertIndex);
+
+    printf("Inside Deallocate, power is %d, and size = %d\n", insertIndex, size);
+    if (insertIndex == 10)
+    {
+        InsertOrdered(freeList[10], 0);
+        printf("\nFreed %d bytes from memory starting from %d till %d\n", size, startIndex, startIndex + size - 1);
+        Traverse(freeList[10]);
+        printf("\n");
+        return;
+    }
+
+    if (findNode(freeList[insertIndex], startIndex))
+    {
+        printf("Sorry, deallocation Failed\n");
+    }
+    // Check if index is even*memSize or odd*memSize
+    else
+    {
+        while (insertIndex < 10)
+        {
+
+            int address = startIndex / size;
+            isEven = 1;
+            if (address % 2 == 0)
+            {
+
+                // Check if next address is present
+                int nextAddress = (address + 1) * size;
+                printf("NEXT ADDRESS: %d\n", nextAddress);
+
+                if (findNode(freeList[insertIndex], nextAddress) == 1)
+                {
+                    DeleteNode(freeList[insertIndex], nextAddress);
+
+                    // To delete the one inserted in previous iteration
+                    if (findNode(freeList[insertIndex], startIndex) == 1)
+                    {
+                        DeleteNode(freeList[insertIndex], startIndex);
+                    }
+                    printf("\nFreed %d bytes from memory starting from %d till %d\n", size, startIndex, startIndex + size - 1);
+                    printf("Merged two blocks of size = %d, and start index = %d \n", size, startIndex);
+                    InsertOrdered(freeList[insertIndex + 1], startIndex);
+                }
+                else
+                {
+                    if (findNode(freeList[insertIndex], startIndex) == 0)
+                    {
+                        // If next is not present, Just Insert Current then
+                        InsertOrdered(freeList[insertIndex], startIndex);
+                    }
+                    break;
+                }
+            }
+
+            else
+            {
+                // Check if prev address is present
+                int prevAddress = (address - 1) * size;
+                printf("PREV ADDRESS: %d\n", prevAddress);
+                if (findNode(freeList[insertIndex], prevAddress) == 1)
+                {
+
+                    printf("startIndex: %d, size: %d, insertIndex: %d\n", startIndex, size, insertIndex);
+                    DeleteNode(freeList[insertIndex], prevAddress);
+                    if (findNode(freeList[insertIndex], startIndex) == 1)
+                    {
+                        DeleteNode(freeList[insertIndex], startIndex);
+                    }
+                    printf("\nFreed %d bytes from memory starting from %d till %d\n", size, startIndex, startIndex + size - 1);
+                    printf("Merged two blocks of size = %d, and start index = %d \n", size, prevAddress);
+                    InsertOrdered(freeList[insertIndex + 1], prevAddress);
+                    startIndex = prevAddress;
+                }
+
+                else
+                {
+                    if (findNode(freeList[insertIndex], startIndex) == 0)
+                    {
+
+                        printf("Inserted a block of size: %d into free list \n", (int)pow(2, insertIndex));
+                        // If next is not present, Just Insert Current then
+                        InsertOrdered(freeList[insertIndex], startIndex);
+                    }
+
+                    break;
+                }
+            }
+            size *= 2;
+            insertIndex++;
+        }
+    }
+    printBuddyMem();
+}
+
+void printBuddyMem()
+{
+    printf("---------------------- Buddy System Table --------------------------\n");
+    for (int i = 3; i <= 10; i++)
+    {
+        printf("size: [%4d]  ||", (int)pow(2, i));
+        Traverse(freeList[i]);
+        printf("\n");
+    }
+    printf("--------------------------------------------------------------------\n");
+}
+
+int isMemoryAvailable(int size)
+{
+    int requiredPower = ceil(log2(size));
+    if (requiredPower < 3)
+    {
+        requiredPower = 3;
+    }
+    for (int i = requiredPower; i <= 10; i++)
+    {
+        if (!isempty(freeList[i]))
+        {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+void traverseQueue(Node **head, Node **ReadyQueue, int flag) // flag : to determine the priority
+{
+    Process temp;
+    Node *previous = *head;
+    Node *current = *head;
+    Process traversalProcess;
+    int requiredPower;
+    while (current != NULL)
+    {
+        // printf("Inside Traverse\n");
+        traversalProcess = current->data;
+
+        if (isMemoryAvailable(traversalProcess.nominalSize) == 1)
+        {
+            traversalProcess.RemainingTime = traversalProcess.RunTime;
+            requiredPower = ceil(log2(traversalProcess.nominalSize));
+            traversalProcess.actualSize = (int)pow(2, requiredPower);
+
+            printf("Current Process to be allocated has ID %d\n", traversalProcess.Id_2);
+
+            traversalProcess.startIndex = allocate(traversalProcess.nominalSize);
+            push(ReadyQueue, traversalProcess, flag);
+            MemoryAllocate(&traversalProcess);
+            // remove this node from the queue
+
+            if (current == *head)
+            {
+                *head = current->Next;
+                current = *head;
+                previous->Next = NULL;
+                previous = *head;
+            }
+            else
+            {
+                previous->Next = current->Next;
+                current->Next = NULL;
+                current = previous->Next;
+            }
+
+            // current = current->Next;
+
+            if (current != NULL)
+            {
+                printf("Previous points to process of size%d\n", previous->data.nominalSize);
+                printf("Current points to process of size%d\n", current->data.nominalSize);
+            }
+            else
+            {
+                printf("current is NULL\n");
+                return;
+            }
+        }
+        else
+        {
+            // printf("No Memory Available\n");
+            previous = current;
+            // printf("Previous points to process of size%d\n", previous->data.nominalSize);
+            current = current->Next;
+            if (current == NULL)
+            {
+                return;
+            }
+            // printf("Next points to process of size%d\n", current->data.nominalSize);
+        }
+    }
+}
+
+double calculateSD(Node **head)
+{
+    double sum = 0.0, mean, SD = 0.0;
+    int i;
+    Node *temp = *head;
+    double counter = 0;
+    while (temp != NULL)
+    {
+        sum = sum + temp->data.WTA;
+        temp = temp->Next;
+        counter++;
+    }
+    temp = *head;
+    mean = sum / counter;
+
+    while (temp != NULL)
+    {
+        SD = SD + pow(temp->data.WTA - mean, 2);
+        temp = temp->Next;
+    }
+    return sqrt(SD / counter);
 }

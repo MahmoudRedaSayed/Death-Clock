@@ -43,12 +43,12 @@ int main(int argc, char * argv[])
         // fscanf(InputFile,"%d", &AllProcesses[i].ArriavalTime);
         // fscanf(InputFile,"%d", &AllProcesses[i].RunTime);
         // fscanf(InputFile,"%d", &AllProcesses[i].Priority);
-         fscanf(InputFile,"%d", &input.Id_2);
+        fscanf(InputFile,"%d", &input.Id_2);
         fscanf(InputFile,"%d", &input.ArriavalTime);
         fscanf(InputFile,"%d", &input.RunTime);
-        
         fscanf(InputFile,"%d", &input.Priority);
-
+        fscanf(InputFile,"%d", &input.nominalSize);
+        printf("input %d\n", input.Id_2);
         AllProcesses[i].WaitingTime = 0;
         AllProcesses[i].RemainingTime = AllProcesses[i].RunTime;
         AllProcesses[i].LastProcess = false;
@@ -56,7 +56,7 @@ int main(int argc, char * argv[])
         if (input.RunTime != 0 )
         {
             AllProcesses[i] = input;
-            printf("id:%d\n", AllProcesses[i].Id_2);
+            // printf("id:%d\n", AllProcesses[i].Id_2);
         }
         else
         {
@@ -76,6 +76,13 @@ int main(int argc, char * argv[])
     }
     fclose(InputFile);
     
+    for (int i = 0; i < CountProcesses; i++)
+    {
+        AllProcesses[i].RemainingTime = AllProcesses[i].RunTime;
+        printf("run : %d, rem: %d\n", AllProcesses[i].RunTime, AllProcesses[i].RemainingTime);
+    }
+
+
     // // test DS
     // Node* q = NULL;
     // for (int i = 0; i < 10; i++)
@@ -92,10 +99,10 @@ int main(int argc, char * argv[])
     // 2. Ask the user for the chosen scheduling algorithm and its parameters, if there are any.
     char args[3][2];
     printf("Choose the algorithm :\n");
-    printf("1-HPF\n2-SRTN\n3-RR\n");
+    printf("1-HPF\n2-SRTN\n3-RR\n4-FCFS\n5-HPFP\n");
     scanf("%s", args[0]);
     // validate the input
-    while (atoi(args[0]) < 1 || atoi(args[0]) > 3)
+    while (atoi(args[0]) < 1 || atoi(args[0]) > 5)
     {
         printf("Wrong Choice, try again\n");
         scanf("%s", args[0]);
