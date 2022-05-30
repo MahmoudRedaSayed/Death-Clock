@@ -47,7 +47,7 @@
 
 |     Algo/Part     |       DS       |
 |:-----------------:|:--------------:|
-|   Processes WTA-RR - Waiting list    |  Queue   |
+|   Processes WTA - RR - Waiting list    |  Queue   |
 |    HPF - SRTN - HPFP     | Priority queue |
 |       Buddy       |  Sorted linked list|
 
