@@ -41,8 +41,8 @@
 1. HPF (Highest Priority First)
 2. STRN (Shortest Time Remaining Next)
 3. RR (Round Robin)
-4.HPFP(The Preemtive version of HPF)
-5.FCFS(First Come )
+4. HPFP(The Preemtive version of HPF)
+5. FCFS(First Come )
 <div align='center'><img src="assets/diagram.png"></div>
 
 ## Used Data structures
@@ -50,7 +50,7 @@
 |     Algo/Part     |       DS       |
 |:-----------------:|:--------------:|
 |   Processes WTA-RR - Waiting list    |  Queue   |
-|    HPF - SRTN-HPFP     | Priority queue |
+|    HPF - SRTN - HPFP     | Priority queue |
 |       Buddy       |  Sorted linked list|
 
 
@@ -68,7 +68,6 @@
 <h3>Memory File </h3>
 <img src="https://github.com/MahmoudRedaSayed/Death-Clock/blob/main/Pics/MemoryFile.jfif">
 </div>
-  
         
 ### Contributors
 <table>
