@@ -7,7 +7,7 @@
 
 <h3 align="center">Death  Clock</h3>
 
-<div align="center">
+<!-- <div align="center">
   
   [![GitHub contributors](https://img.shields.io/github/contributors/MahmoudRedaSayed/Death-Clock)](https://github.com/MahmoudRedaSayed/Death-Clock/contributors)
   [![GitHub issues](https://img.shields.io/github/issues/MahmoudRedaSayed/Death-Clock)](https://github.com/MahmoudRedaSayed/Death-Clock/issues)
@@ -19,7 +19,7 @@
   <img src="https://img.shields.io/github/languages/MahmoudRedaSayed/Death-Clock" />
   <img src="https://img.shields.io/github/issues-pr-raw/MahmoudRedaSayed/Death-Clock />
 
-</div>
+</div> -->
 
 ## About
 > A CPU scheduler determines an order for the execution of its scheduled processes; it
@@ -62,7 +62,7 @@
 </div>
 <div align='center'>
 <h3>Schedular File </h3>
-<img src="https://github.com/MahmoudRedaSayed/Death-Clock/blob/main/Pics/SchedularFile.jfif">
+<img src="https://github.com/MahmoudRedaSayed/Death-Clock/blob/main/Pics/schedularFile.jfif">
 </div>
 <div align='center'>
 <h3>Memory File </h3>
@@ -78,6 +78,3 @@
      <td align="center"><a href="https://github.com/MohamedWw"><img src="https://avatars.githubusercontent.com/u/64079821?v=4" width="150px;" alt=""/><br /><sub><b>Mohamed Walid</b></sub></a><br /></td>
   </tr>
  </table>
-
-### Licence
-[MIT Licence](https://github.com/AbdallahHemdan/Sqrt_OS/blob/main/LICENSE)
