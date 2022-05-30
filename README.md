@@ -43,8 +43,6 @@
 3. RR (Round Robin)
 4. HPFP(The Preemtive version of HPF)
 5. FCFS(First Come )
-<div align='center'><img src="assets/diagram.png"></div>
-
 ## Used Data structures
 
 |     Algo/Part     |       DS       |
