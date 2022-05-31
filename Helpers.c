@@ -2,8 +2,7 @@
 /******************************* Global Variables *******************************/
 FILE *OutputFile;
 FILE *MemoryOutputFile;
-double TotalWTRTime=0,TotalWaitTime=0,TotalRunTime=0;
-
+double TotalWTRTime = 0, TotalWaitTime = 0, TotalRunTime = 0;
 
 /******************************* Start Data Structures *******************************/
 struct Node
@@ -22,6 +21,19 @@ union Semun
 	void *__pad;
 };
 
+struct nodesorted
+{
+	int data;
+	struct nodesorted *next;
+};
+typedef struct nodesorted NODE;
+
+struct linkedList
+{
+	NODE *head;
+	int size;
+};
+
 // memory section
 
 ///////////////////////
@@ -33,9 +45,9 @@ Function explaintion:-
 		1- q : the head node of the queue
 		2- p: the process to be pushed
 		3- PriorityFlag : this flag to determine which the priority for,
-						  if flag : 0  ( no priority, acts as a normal queue FCFS)
-						  if flag : 1  ( Priority on the the process priority)
-						  if flag : 2  ( Priority on the the process remaining time)
+			if flag : 0  ( no priority, acts as a normal queue FCFS)
+			if flag : 1  ( Priority on the the process priority)
+			if flag : 2  ( Priority on the the process remaining time)
 
 */
 void push(Node **q, Process p, int PriorityFlag) // PriorityFlag:1 ( priority is on) , PriorityFlag:0 ( priority is off), PriorityFlag:2 ( priority is remaining Time)
@@ -218,6 +230,160 @@ bool isEmpty(Node *q)
 {
 	return q == NULL;
 }
+//------------------------------------------------------------------------------------------------------------------------//
+/*
+Function explaintion:-
+	This function is used to create a linked list
+*/
+struct linkedList *creatLinkedList()
+{
+	struct linkedList *ll = (struct linkedList *)malloc(sizeof(struct linkedList));
+	ll->head = NULL;
+	ll->size = 0;
+	return ll;
+}
+//------------------------------------------------------------------------------------------------------------------------//
+/*
+Function explaintion:-
+	This function is used to insert a node in a sorted linked list
+	Function Parameters:-
+		1- ll : the head node of the linked list
+		2- data : the value to be sorted
+*/
+void InsertOrdered(struct linkedList *ll, int data)
+{
+	NODE *newnode;
+	newnode = (NODE *)malloc(sizeof(NODE));
+	newnode->data = data;
+	// printf("newNode data : %d", newnode->data);
+	// if it is the first node
+	if (ll->size == 0)
+	{
+		ll->head = newnode;
+		ll->head->next = NULL;
+		ll->size++;
+		return;
+	}
+
+	NODE *head = ll->head;
+	NODE *previous = NULL;
+	NODE *current = head;
+	while (current != NULL && data > current->data)
+	{
+		previous = current;
+		current = current->next;
+	}
+	// then the new element should be the head
+	if (previous == NULL)
+	{
+		ll->head = newnode;
+		newnode->next = current;
+	}
+	else
+	{
+		previous->next = newnode;
+		newnode->next = current;
+	}
+	ll->size++;
+}
+//------------------------------------------------------------------------------------------------------------------------//
+/*
+Function explaintion:-
+	This function is used to remove a node from a sorted linked list
+	Function Parameters:-
+		1- ll : the head node of the linked list
+		2- data : the value to be deleted
+*/
+int DeleteNode(struct linkedList *ll, int data)
+{
+	if (ll->size == 0)
+	{
+		return 0;
+	}
+	NODE *head = ll->head;
+	NODE *previous = NULL;
+	NODE *current = head;
+	while (current != NULL && current->data != data)
+	{
+		previous = current;
+		current = current->next;
+	}
+	if (current != NULL) /* if list empty or data not found */
+	{
+		if (current == head)
+		{
+			ll->head = current->next;
+		}
+		else
+		{
+			previous->next = current->next;
+		}
+		free(current);
+		ll->size--;
+		if (ll->size == 0)
+		{
+			ll->head = NULL;
+		}
+		return 1;
+	}
+	else
+		return 0;
+}
+//------------------------------------------------------------------------------------------------------------------------//
+/*
+Function explaintion:-
+	This function is used to traverse the linked list and to print its values
+	Function Parameters:-
+		1- ll : the head node of the linked list
+*/
+void Traverse(struct linkedList *ll)
+{
+	NODE *head = ll->head;
+	// printf("head data : %d", head->data);
+	NODE *current = head;
+	while (current != NULL)
+	{
+		printf(" (%d) - ", current->data);
+		current = current->next;
+	}
+}
+//------------------------------------------------------------------------------------------------------------------------//
+/*
+Function explaintion:-
+	This function is used to search for a certain node in the sorted passed linked list
+	Function Parameters:-
+		1- data : the value that stored inside the wanted node
+*/
+int findNode(struct linkedList *ll, int data)
+{
+	if (ll->size == 0)
+	{
+		return 0;
+	}
+	NODE *head = ll->head;
+	NODE *previous = NULL;
+	NODE *current = head;
+	while (current != NULL && current->data != data)
+	{
+		previous = current;
+		current = current->next;
+	}
+	if (current != NULL)
+		return 1;
+	else
+		return 0;
+}
+//------------------------------------------------------------------------------------------------------------------------//
+/*
+Function explaintion:-
+	This function is used to check whether the queue is empty or not
+	Function Parameters:-
+		1- ll : the head node of the linked list
+*/
+int isempty(struct linkedList *ll)
+{
+	return (ll->size == 0);
+}
 
 /******************************* End Data Structures *******************************/
 
@@ -352,8 +518,6 @@ void StartProcess(Process *CurrentProcess)
 	if (!OutputFile)
 		perror("\nCan't open the scheduler text file\n");
 
-	
-
 	CurrentProcess->Id_1 = fork();
 
 	if (CurrentProcess->Id_1 == 0)
@@ -378,9 +542,9 @@ void MemoryAllocate(Process *CurrentProcess)
 	MemoryOutputFile = fopen("Memory.log", "a");
 	if (!MemoryOutputFile)
 		perror("\nCan't open the scheduler text file\n");
-	fprintf(MemoryOutputFile,"At time %d allocated %d bytes for process %d from %d to %d\n",
-	getClk(), CurrentProcess->nominalSize, CurrentProcess->Id_2, CurrentProcess->startIndex, CurrentProcess->startIndex + CurrentProcess->actualSize - 1);
-	
+	fprintf(MemoryOutputFile, "At time %d allocated %d bytes for process %d from %d to %d\n",
+			getClk(), CurrentProcess->nominalSize, CurrentProcess->Id_2, CurrentProcess->startIndex, CurrentProcess->startIndex + CurrentProcess->actualSize - 1);
+
 	fclose(MemoryOutputFile);
 }
 
@@ -395,9 +559,9 @@ void MemoryDeallocate(Process *CurrentProcess)
 	MemoryOutputFile = fopen("Memory.log", "a");
 	if (!MemoryOutputFile)
 		perror("\nCan't open the scheduler text file\n");
-	fprintf(MemoryOutputFile,"At time %d freed %d bytes for process %d from %d to %d\n",
-	getClk(), CurrentProcess->nominalSize, CurrentProcess->Id_2, CurrentProcess->startIndex, CurrentProcess->startIndex + CurrentProcess->actualSize - 1);
-	
+	fprintf(MemoryOutputFile, "At time %d freed %d bytes for process %d from %d to %d\n",
+			getClk(), CurrentProcess->nominalSize, CurrentProcess->Id_2, CurrentProcess->startIndex, CurrentProcess->startIndex + CurrentProcess->actualSize - 1);
+
 	fclose(MemoryOutputFile);
 }
 
@@ -418,8 +582,8 @@ void ReadyProcessExist(int MsgId, Node **Queue, int *Flag, int Priority, int *la
 	RecProcess = RecMsg(MsgId);
 	RecProcess.WaitingTime = 0;
 	while (RecProcess.ArriavalTime != -1)
-	{	
-		(*CountProcesses)+=1;
+	{
+		(*CountProcesses) += 1;
 		// RecProcess.RemainingTime = RecProcess.RunTime;
 		push(Queue, RecProcess, Priority);
 		printf("\nprocess : %d, received at clk:%d\n", RecProcess.Id_2, getClk());
@@ -442,9 +606,9 @@ void FinishProcess(Process *FinishedProcess, int *ShmAddr)
 	int FinishTime = getClk();
 	// double WTA = (getClk() - FinishedProcess->ArriavalTime) * 1.0 / FinishedProcess->RunTime;
 	double WTA = (getClk() - FinishedProcess->ArriavalTime) * 1.0 / FinishedProcess->RunTime;
-	TotalWTRTime+=WTA;
-	TotalWaitTime+=FinishedProcess->WaitingTime;
-	TotalRunTime+=FinishedProcess->RunTime;
+	TotalWTRTime += WTA;
+	TotalWaitTime += FinishedProcess->WaitingTime;
+	TotalRunTime += FinishedProcess->RunTime;
 	// int wait = (getClk() - FinishedProcess->ArriavalTime) - FinishedProcess->RunTime;
 	fprintf(OutputFile, "At time %d process %d finished arr %d total %d remain 0 wait %d TA %d WTA %.2f\n", getClk(),
 			FinishedProcess->Id_2, FinishedProcess->ArriavalTime, FinishedProcess->RunTime,
@@ -463,7 +627,7 @@ Function explaintion:-
 void StopProcess(Process *p)
 {
 	OutputFile = fopen("scheduler.log", "a");
-	p->LastStop=getClk();
+	p->LastStop = getClk();
 	kill(p->Id_1, SIGSTOP);
 	printf("lastStop in stop function = %d\n", p->LastStop);
 	fprintf(OutputFile, "At time %d process %d stopped arr %d total %d remain %d\n", getClk(),
@@ -482,10 +646,10 @@ void ContinueProcess(Process *p)
 {
 	OutputFile = fopen("scheduler.log", "a");
 	kill(p->Id_1, SIGCONT);
-	p->WaitingTime+=getClk()-p->LastStop - 1;
+	p->WaitingTime += getClk() - p->LastStop - 1;
 	printf("lastStop = %d\n", p->LastStop);
 	fprintf(OutputFile, "At time %d process %d resumed arr %d total %d remain %d wait %d\n", getClk(),
-			p->Id_2, p->ArriavalTime, p->RunTime, p->RemainingTime,(getClk()-p->LastStop) -1);
+			p->Id_2, p->ArriavalTime, p->RunTime, p->RemainingTime, (getClk() - p->LastStop) - 1);
 	fclose(OutputFile);
 }
 //------------------------------------------------------------------------------------------------------------------------//
@@ -520,48 +684,36 @@ int comparePriorities(int First, int Second)
 		return 0;
 }
 
-void down(int sem)
-{
-	struct sembuf p_op;
-
-	p_op.sem_num = 0;
-	p_op.sem_op = -1;			// it means -> i want to subtract 1 from the sem(parameter).val
-	p_op.sem_flg = !IPC_NOWAIT; // no not wait --> sleep until the semaphore value returned back to 0
-	printf("sem:%d\n", sem);
-	if (semop(sem, &p_op, 1 /* indicates that i have one operation */) == -1)
-	{
-		perror("Error in down()");
-		exit(-1);
-	}
-}
-
-
 /*Function explaintion:-
 	This function to make the file scheduler.pref
 	Function Parameters:-
 		1-ProcessCount:- The number of the processes
 */
 void SchedulerPref(int ProcessCount, int ClockAtFinishing, double std)
-{printf("count %d\n", ProcessCount);
+{
+	printf("count %d\n", ProcessCount);
 
 	OutputFile = fopen("scheduler.pref", "w");
-	double AGVWTR=TotalWTRTime/ProcessCount;
-	double AGVWaiting=TotalWaitTime/ProcessCount;
-	double CPUUtilaization=(TotalRunTime/ClockAtFinishing)*100;
+	double AGVWTR = TotalWTRTime / ProcessCount;
+	double AGVWaiting = TotalWaitTime / ProcessCount;
+	double CPUUtilaization = (TotalRunTime / ClockAtFinishing) * 100;
 	printf("AGVWTR %f\n", AGVWTR);
 	printf("AGVWaiting %f\n", AGVWaiting);
-	fprintf(OutputFile, "CPU Utilization = %.2f %c\nAVGWait = %.2f\nAVGWTA = %.2f\nstdWTA = %.2f\n",CPUUtilaization,'%',AGVWaiting,
+	fprintf(OutputFile, "CPU Utilization = %.2f %c\nAVGWait = %.2f\nAVGWTA = %.2f\nstdWTA = %.2f\n", CPUUtilaization, '%', AGVWaiting,
 			AGVWTR, std);
 	fclose(OutputFile);
 }
 
+/*Function explaintion:-
+	This function to print the initial line in both files (schedular.log & memory.log)
+*/
 void printFirstLineInFile()
 {
 	OutputFile = fopen("scheduler.log", "w");
-	fprintf(OutputFile,"#At time x Process y state arr w total z remain y wait k\n");
+	fprintf(OutputFile, "#At time x Process y state arr w total z remain y wait k\n");
 	fclose(OutputFile);
 
 	OutputFile = fopen("Memory.log", "w");
-	fprintf(OutputFile,"#At time x allocated y bytes for process z from i to j\n");
+	fprintf(OutputFile, "#At time x allocated y bytes for process z from i to j\n");
 	fclose(OutputFile);
 }

@@ -15,8 +15,6 @@
 #include <string.h>
 #include <stdbool.h>
 
-
-
 #define true 1
 #define false 0
 #define SHKEY 300
@@ -98,26 +96,3 @@ void destroyClk(bool terminateAll)
         killpg(getpgrp(), SIGINT);
     }
 }
-
-
-
-
-// initialization of a shared memroy segment, and return its id
-int initializeSharedMemory(void*sharedMemoryAddress, int project_id)
-{
-    int shmid;
-    key_t sharedMemoryKey = ftok("keyFile", project_id);    //ftok - converts a pathname and a project identifier to a System V IPC key
-    shmid = shmget(sharedMemoryKey, 4096, IPC_CREAT | 0666);
-
-    if (shmid == -1)
-    {
-        perror("Failed to create shared Memory");
-        exit(-1);
-    }else   printf("Created a shared memory segment with id : %d\n", shmid);
-
-    sharedMemoryAddress = shmat(shmid, (void*)0, 0);    // attach to the shm
-
-    return shmid;
-}
-
-

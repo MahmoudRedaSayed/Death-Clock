@@ -392,6 +392,7 @@ void HPFP()
         traverseQueue(&WaitingQueue, &ReadyQueue, 1);
         if (*ShmAddr2 == 1 || flag == 1)
         {
+            traverseQueue(&WaitingQueue, &ReadyQueue, 1);
             *ShmAddr2 = 0;
             if (*ShmAddr == 0)
             {
@@ -415,6 +416,7 @@ void HPFP()
             if (!isEmpty(ReadyQueue))
             {
                 // compare
+                traverseQueue(&WaitingQueue, &ReadyQueue, 1);
                 LowestPriority = peek(ReadyQueue).Priority;
                 if (LowestPriority < CurrentProcess.Priority && LowestPriority != 11) // if shared memory is -1 it will not go into it
                 {
@@ -489,146 +491,22 @@ void checkRecieving(int signum)
     signal(SIGUSR1, checkRecieving);
 }
 
-struct nodesorted
-{
-    int data;
-    struct nodesorted *next;
-};
-typedef struct nodesorted NODE;
-
-struct linkedList
-{
-    NODE *head;
-    int size;
-};
-
 /* linked list functions */
 
-struct linkedList *creatLinkedList()
-{
-    struct linkedList *ll = (struct linkedList *)malloc(sizeof(struct linkedList));
-    ll->head = NULL;
-    ll->size = 0;
-    return ll;
-}
-
-void InsertOrdered(struct linkedList *ll, int data)
-{
-    NODE *newnode;
-    newnode = (NODE *)malloc(sizeof(NODE));
-    newnode->data = data;
-    // printf("newNode data : %d", newnode->data);
-    // if it is the first node
-    if (ll->size == 0)
-    {
-        ll->head = newnode;
-        ll->head->next = NULL;
-        ll->size++;
-        return;
-    }
-
-    NODE *head = ll->head;
-    NODE *previous = NULL;
-    NODE *current = head;
-    while (current != NULL && data > current->data)
-    {
-        previous = current;
-        current = current->next;
-    }
-    // then the new element should be the head
-    if (previous == NULL)
-    {
-        ll->head = newnode;
-        newnode->next = current;
-    }
-    else
-    {
-        previous->next = newnode;
-        newnode->next = current;
-    }
-    ll->size++;
-}
-
-int DeleteNode(struct linkedList *ll, int data)
-{
-    if (ll->size == 0)
-    {
-        return 0;
-    }
-    NODE *head = ll->head;
-    NODE *previous = NULL;
-    NODE *current = head;
-    while (current != NULL && current->data != data)
-    {
-        previous = current;
-        current = current->next;
-    }
-    if (current != NULL) /* if list empty or data not found */
-    {
-        if (current == head)
-        {
-            ll->head = current->next;
-        }
-        else
-        {
-            previous->next = current->next;
-        }
-        free(current);
-        ll->size--;
-        if (ll->size == 0)
-        {
-            ll->head = NULL;
-        }
-        return 1;
-    }
-    else
-        return 0;
-}
-
-void Traverse(struct linkedList *ll)
-{
-    NODE *head = ll->head;
-    // printf("head data : %d", head->data);
-    NODE *current = head;
-    while (current != NULL)
-    {
-        printf(" (%d) - ", current->data);
-        current = current->next;
-    }
-}
-
-int findNode(struct linkedList *ll, int data)
-{
-    if (ll->size == 0)
-    {
-        return 0;
-    }
-    NODE *head = ll->head;
-    NODE *previous = NULL;
-    NODE *current = head;
-    while (current != NULL && current->data != data)
-    {
-        previous = current;
-        current = current->next;
-    }
-    if (current != NULL)
-        return 1;
-    else
-        return 0;
-}
-
-int isempty(struct linkedList *ll)
-{
-    return (ll->size == 0);
-}
 
 /////////////  memory section /////////////
 struct linkedList *freeList[11];
 
+
+/*
+Function explanation:-
+    Initializes the array free list that has linked lists, each holding the starting index of the free blocks of that size
+    the size is 2^i where i is the index of that list in the array
+*/
 void buddyInit()
 {
     // Create Lists to hold starting indeces of blocks of that size (2^i)
-    // Where i is the index of that linked list in the Free List
+    // Where i is the index of that linked list in the Free List Array
     for (int i = 3; i <= 10; i++)
     {
         freeList[i] = creatLinkedList();
@@ -636,6 +514,11 @@ void buddyInit()
     // Store the largest Portion of memory (RAW, not used at all)
     InsertOrdered(freeList[10], 0);
 }
+/*
+Function explanation:-
+    This function splits a block of memory into two smaller blocks of half the size of the original block
+    Example: Block 1024 bytes -> Split into two 512 bytes blocks.
+*/
 
 void splitMemory(int blockSize, int startIndex)
 {
@@ -654,15 +537,23 @@ void splitMemory(int blockSize, int startIndex)
     // Second StartIndex which can be further split
     insertElement = startIndex;
 
-    printf("First Insert Index in split: %d \n", insertIndex);
+    printf("Second Insert Index in split: %d \n", insertIndex);
     // Store left child
     InsertOrdered(freeList[insertIndex], insertElement);
 
     // Delete Parent
     DeleteNode(freeList[insertIndex + 1], startIndex);
 }
+/*
+Function explanation:-
+    - Allocates memory for a process given its size, and returns the start index of that allocated block
+    - If no memory is available for allocation, it returns -1
+*/
 
-// Return process.startIndex if it's not -1
+/*
+Assumption: 
+    - No Process is smaller than 8 bytes.
+*/
 int allocate(int size)
 {
     int firstNONEmptyIndex = 11;
@@ -694,16 +585,13 @@ int allocate(int size)
         return -1;
     }
 
-    ////////////////////////////////////That Section will probably be deleted./////////////////////////////////////////////////////////
-    // Exact Fit, no need for Loop (Can Do It With Loop Probably in Else Condition {will not enter loop and thus execute the section below})
     else if (firstNONEmptyIndex == requiredPower)
     {
         int startIndex = freeList[requiredPower]->head->data;
         DeleteNode(freeList[requiredPower], startIndex);
 
         printf("\nAllocated %d bytes from memory from Index %d, till %d\n", (int)pow(2, requiredPower), startIndex, (int)pow(2, requiredPower) + startIndex - 1);
-        // To be Stored in process.startIndex
-        //[Together with process.actualSize will make us not need map for indexes and sizes]
+      
         return startIndex;
     }
     ///////////////////////////////////////Till Here////////////////////////////////////////////////////////////////
@@ -726,8 +614,6 @@ int allocate(int size)
         }
 
         // delete Node from free list and return the start index to be stored in process.startIndex
-        printf("Hassan\n");
-        printf("DATA: %d\n", freeList[requiredPower]->head->data);
         int startIndex = freeList[requiredPower]->head->data;
         DeleteNode(freeList[requiredPower], startIndex);
 
@@ -735,13 +621,16 @@ int allocate(int size)
         return startIndex;
     }
 }
+/*
+Function Explanation: 
+    - Gets a process size and frees its block in memory, then insert in free list.
+    - Then merges neigbouring blocks (Buddies).
+    - If even index, merge with the block after, if odd index, merge with the block before
+*/
 
-// Gets Actual size of Process, and its startIndex
-// process.memSize should have the actual size not the given one in file??
-//(or can have another data member process.actualSize and send this to deallocate)
 void deallocate(int startIndex, int size)
 {
-    printBuddyMem();
+
     int isEven = 0;
     int insertIndex = ceil(log2(size));
     if (insertIndex < 3)
@@ -840,20 +729,13 @@ void deallocate(int startIndex, int size)
             insertIndex++;
         }
     }
-    printBuddyMem();
+    
 }
 
-void printBuddyMem()
-{
-    printf("---------------------- Buddy System Table --------------------------\n");
-    for (int i = 3; i <= 10; i++)
-    {
-        printf("size: [%4d]  ||", (int)pow(2, i));
-        Traverse(freeList[i]);
-        printf("\n");
-    }
-    printf("--------------------------------------------------------------------\n");
-}
+/*
+Function Explanation: 
+    Gets a process size and checks if there is a free memory block to hold it, by checking the free list.
+*/
 
 int isMemoryAvailable(int size)
 {
@@ -872,6 +754,11 @@ int isMemoryAvailable(int size)
     return 0;
 }
 
+/*
+Function Explanation: 
+    Traverses waiting queue, and if any process can be allocated in memory, allocates memory for it, 
+    removes from waiting queue, and pushes into ready queue
+*/
 void traverseQueue(Node **head, Node **ReadyQueue, int flag) // flag : to determine the priority
 {
     Process temp;
