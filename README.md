@@ -1,4 +1,4 @@
-<div align="center">
+<div align="center ">
 <a href="https://github.com/MahmoudRedaSayed/Death-Clock" rel="noopener">
   
   ![Component 14](https://github.com/MahmoudRedaSayed/Death-Clock/blob/main/Pics/Clock.jfif)
@@ -9,16 +9,9 @@
 
 <div align="center">
   
-  [![GitHub contributors](https://img.shields.io/github/contributors/MahmoudRedaSayed/Death-Clock)](https://github.com/MahmoudRedaSayed/Death-Clock/contributors)
   [![GitHub issues](https://img.shields.io/github/issues/MahmoudRedaSayed/Death-Clock)](https://github.com/MahmoudRedaSayed/Death-Clock/issues)
   [![GitHub forks](https://img.shields.io/github/forks/MahmoudRedaSayed/Death-Clock)](https://github.com/MahmoudRedaSayed/Death-Clock/network)
-  [![GitHub stars](https://img.shields.io/github/stars/MahmoudRedaSayed/Death-Clock)](https://github.com/MahmoudRedaSayed/Death-Clock/stargazers)
-  [![GitHub license](https://img.shields.io/github/license/MahmoudRedaSayed/Death-Clock)](https://github.com/MahmoudRedaSayed/Death-Clock/blob/master/LICENSE)
   <img src="https://img.shields.io/github/languages/count/MahmoudRedaSayed/Death-Clock" />
-  <img src="https://img.shields.io/github/languages/top/MahmoudRedaSayed/Death-Clock" />
-  <img src="https://img.shields.io/github/languages/MahmoudRedaSayed/Death-Clock" />
-  <img src="https://img.shields.io/github/issues-pr-raw/MahmoudRedaSayed/Death-Clock />
-
 </div>
 
 ## About
@@ -41,16 +34,14 @@
 1. HPF (Highest Priority First)
 2. STRN (Shortest Time Remaining Next)
 3. RR (Round Robin)
-4.HPFP(The Preemtive version of HPF)
-5.FCFS(First Come )
-<div align='center'><img src="assets/diagram.png"></div>
-
+4. HPFP(The Preemtive version of HPF)
+5. FCFS(First Come )
 ## Used Data structures
 
 |     Algo/Part     |       DS       |
 |:-----------------:|:--------------:|
-|   Processes WTA-RR - Waiting list    |  Queue   |
-|    HPF - SRTN-HPFP     | Priority queue |
+|   Processes WTA - RR - Waiting list    |  Queue   |
+|    HPF - SRTN - HPFP     | Priority queue |
 |       Buddy       |  Sorted linked list|
 
 
@@ -62,14 +53,22 @@
 </div>
 <div align='center'>
 <h3>Schedular File </h3>
-<img src="https://github.com/MahmoudRedaSayed/Death-Clock/blob/main/Pics/SchedularFile.jfif">
+<img src="https://github.com/MahmoudRedaSayed/Death-Clock/blob/main/Pics/schedularFile.jfif">
 </div>
 <div align='center'>
 <h3>Memory File </h3>
 <img src="https://github.com/MahmoudRedaSayed/Death-Clock/blob/main/Pics/MemoryFile.jfif">
 </div>
   
-        
+##  Work load
+
+|     Part    |      Person      |
+|:-----------------:|:--------------:|
+|    HPF - SRTN - HPFP - FCFS - RoundRobin     | Mahmoud Reda - Mustafa Hamzawy  |
+|   Buddy System    |  Mohamed Walid   |
+
+
+  
 ### Contributors
 <table>
   <tr>
@@ -78,6 +77,3 @@
      <td align="center"><a href="https://github.com/MohamedWw"><img src="https://avatars.githubusercontent.com/u/64079821?v=4" width="150px;" alt=""/><br /><sub><b>Mohamed Walid</b></sub></a><br /></td>
   </tr>
  </table>
-
-### Licence
-[MIT Licence](https://github.com/AbdallahHemdan/Sqrt_OS/blob/main/LICENSE)
