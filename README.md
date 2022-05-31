@@ -1,4 +1,4 @@
-<div align="center">
+<div align="center ">
 <a href="https://github.com/MahmoudRedaSayed/Death-Clock" rel="noopener">
   
   ![Component 14](https://github.com/MahmoudRedaSayed/Death-Clock/blob/main/Pics/Clock.jfif)
@@ -7,19 +7,12 @@
 
 <h3 align="center">Death  Clock</h3>
 
-<!-- <div align="center">
+<div align="center">
   
-  [![GitHub contributors](https://img.shields.io/github/contributors/MahmoudRedaSayed/Death-Clock)](https://github.com/MahmoudRedaSayed/Death-Clock/contributors)
   [![GitHub issues](https://img.shields.io/github/issues/MahmoudRedaSayed/Death-Clock)](https://github.com/MahmoudRedaSayed/Death-Clock/issues)
   [![GitHub forks](https://img.shields.io/github/forks/MahmoudRedaSayed/Death-Clock)](https://github.com/MahmoudRedaSayed/Death-Clock/network)
-  [![GitHub stars](https://img.shields.io/github/stars/MahmoudRedaSayed/Death-Clock)](https://github.com/MahmoudRedaSayed/Death-Clock/stargazers)
-  [![GitHub license](https://img.shields.io/github/license/MahmoudRedaSayed/Death-Clock)](https://github.com/MahmoudRedaSayed/Death-Clock/blob/master/LICENSE)
   <img src="https://img.shields.io/github/languages/count/MahmoudRedaSayed/Death-Clock" />
-  <img src="https://img.shields.io/github/languages/top/MahmoudRedaSayed/Death-Clock" />
-  <img src="https://img.shields.io/github/languages/MahmoudRedaSayed/Death-Clock" />
-  <img src="https://img.shields.io/github/issues-pr-raw/MahmoudRedaSayed/Death-Clock />
-
-</div> -->
+</div>
 
 ## About
 > A CPU scheduler determines an order for the execution of its scheduled processes; it
@@ -66,7 +59,16 @@
 <h3>Memory File </h3>
 <img src="https://github.com/MahmoudRedaSayed/Death-Clock/blob/main/Pics/MemoryFile.jfif">
 </div>
-        
+  
+##  Work load
+
+|     Part    |      Person      |
+|:-----------------:|:--------------:|
+|    HPF - SRTN - HPFP - FCFS - RoundRobin     | Mahmoud Reda - Mustafa Hamzawy  |
+|   Buddy System    |  Mohamed Walid   |
+
+
+  
 ### Contributors
 <table>
   <tr>
